@@ -1,0 +1,43 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { groqService } from '@/lib/groq';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    console.log('Request body:', body);
+    
+    const { topic, audience, goal, template, interviewType, totalDuration } = body;
+
+    if (!topic || !audience || !goal) {
+      return NextResponse.json(
+        { error: '缺少必要参数：topic, audience, goal' },
+        { status: 400 }
+      );
+    }
+
+    // 使用 Groq 服务 - 参数名匹配
+    const outlineData = await groqService.generateOutline({
+      researchTopic: topic,           // 修复参数名
+      targetAudience: audience,       // 修复参数名
+      researchPurpose: goal,           // 修复参数名
+      interviewType: interviewType || 'IDI',
+      interviewDuration: totalDuration || '30',
+      selectedTemplate: template || 'basic'
+    });
+
+    console.log('Generated outline:', outlineData);
+
+    return NextResponse.json(outlineData);
+
+  } catch (error) {
+    console.error('Generate outline error:', error);
+    
+    return NextResponse.json(
+      { 
+        error: '生成大纲失败',
+        message: error instanceof Error ? error.message : '未知错误'
+      },
+      { status: 500 }
+    );
+  }
+}

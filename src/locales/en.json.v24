@@ -1,0 +1,108 @@
+{
+  "sidebar": {
+    "memory": "Memory",
+    "projectMemory": "Project Memory",
+    "historyRecords": "History Records",
+    "currentSession": "Current Session",
+    "outline": "Outline",
+    "analysis": "Analysis",
+    "transcriptAnalysis": "Transcript Analysis",
+    "history": "History",
+    "noHistory": "No history records",
+    "transcriptInfo": "Transcript Info",
+    "chunksCount": "{{count}} chunks segmented",
+    "avgLength": "Avg length {{length}} chars",
+    "aiExpert": "AI Expert Service"
+  },
+  "app": {
+    "title": "QualiProbe | AI-Powered Qualitative Research Insight Engine",
+    "subtitle": "Making Research Design and Interview Analysis More Efficient and Systematic"
+  },
+  "header": {
+    "outlineDesign": "Outline Design",
+    "interviewAnalysis": "Interview Analysis"
+  },
+  "outline": {
+    "researchTopic": "Research Topic",
+    "targetAudience": "Target Audience",
+    "researchPurpose": "Research Purpose", 
+    "interviewType": "Interview Type",
+    "interviewDuration": "Duration",
+    "outputLanguage": "Output Language",
+    "templateUpload": "Template Upload",
+    "uploadTemplate": "Upload Template",
+    "useDefaultTemplate": "Use Default Template",
+    "templateSupport": "Supports JSON, TXT format interview outline templates",
+    "generateOutline": "Generate Interview Outline",
+    "generating": "Generating...",
+    "generatedOutline": "Generated Interview Outline",
+    "edit": "Edit",
+    "exportWord": "Export Word",
+    "editOutline": "Edit Interview Outline",
+    "projectTitle": "Project Title",
+    "duration": "Duration",
+    "questionList": "Question List",
+    "notes": "Notes",
+    "addSection": "Add Section",
+    "saveChanges": "Save Changes",
+    "cancel": "Cancel",
+    "interviewOutline": "Interview Outline",
+    "researchPurposePlaceholder": "e.g., Understand user habits and pain points with the product",
+    "targetAudiencePlaceholder": "e.g., Young professionals",
+    "researchTopicPlaceholder": "e.g., User experience research"
+  },
+  "analysis": {
+    "interviewAnalysis": "Interview Analysis",
+    "analysisDescription": "Upload interview transcripts, AI will automatically generate deep insight reports",
+    "runInsightAnalysis": "Run Insight Analysis",
+    "analyzing": "Analyzing...",
+    "background": "Background Analysis",
+    "coreInsights": "Core Insights",
+    "actionItems": "Action Items",
+    "fineTune": "Fine-tune",
+    "exportReport": "Export Report",
+    "transcriptUpload": "Transcript Upload",
+    "selectFile": "Select File (.txt/.docx)",
+    "pasteBelow": "Or paste below",
+    "transcriptContent": "Transcript Content",
+    "transcriptPlaceholder": "Please paste interview transcript content...",
+    "transcriptPreview": "Transcript Preview",
+    "viewOriginal": "View Original Location",
+    "waitingForTranscript": "Waiting for transcript import to start analysis",
+    "transcriptImportPrompt": "Please upload or paste interview transcript content on the right, and the system will automatically generate deep insight analysis reports."
+  },
+  "agent": {
+    "qualiProbeAgent": "QualiProbe Agent",
+    "insightEngine": "Insight Engine",
+    "welcome": "Hello, I'm QualiProbe Insight Engine. How can I help you?",
+    "askMoreDetails": "Ask for more details...",
+    "scanningTranscript": "🔍 Scanning transcript chunks for evidence...",
+    "processing": "Processing...",
+    "apply": "Apply",
+    "startInsightAnalysis": "Click to start insight analysis",
+    "launchInsight": "Launch Insight",
+    "launchInsightTooltip": "Start AI insight engine for deep analysis"
+  },
+  "interviewTypes": {
+    "idi": "In-depth Interview (IDI)",
+    "fgd": "Focus Group Discussion (FGD)"
+  },
+  "languages": {
+    "chinese": "🇨🇳 Chinese",
+    "english": "🇺🇸 English",
+    "japanese": "🇯🇵 Japanese", 
+    "bilingual": "🌐 Bilingual"
+  },
+  "durations": {
+    "30": "30 minutes",
+    "45": "45 minutes",
+    "60": "60 minutes",
+    "90": "90 minutes",
+    "120": "120 minutes"
+  },
+  "errors": {
+    "operationFailed": "Operation Failed",
+    "templateUploadFailed": "Template upload failed, please check file format",
+    "conversationFailed": "Conversation failed, please try again later"
+  }
+}

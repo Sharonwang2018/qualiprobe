@@ -1,0 +1,2033 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Brain, 
+  Edit3, 
+  Download, 
+  Upload, 
+  FileText, 
+  Clock, 
+  Plus, 
+  X, 
+  Search, 
+  MessageSquare, 
+  ChevronLeft, 
+  HelpCircle, 
+  Settings, 
+  Loader2, 
+  History, 
+  ChevronDown, 
+  Check,
+  PlayCircle,
+  BookOpen,
+  Sparkles
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { groqService } from '@/lib/groq';
+import { exportToWord } from '@/lib/exportDocx';
+import { generateOutline } from '@/lib/groq';
+import Groq from "groq-sdk";
+
+interface Section {
+  id?: number;
+  title: string;
+  duration: string;
+  questions: string[];
+  notes: string;
+}
+
+interface OutlineData {
+  project_title: string;
+  sections: Section[];
+}
+
+interface ChatMessage {
+  id: string;
+  type: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  evidence?: {
+    chunkId: string;
+    text: string;
+  };
+}
+
+interface AnalysisResult {
+  background: string;
+  outline: string;
+  coreInsights: string;
+  actionItems: string;
+}
+
+interface HistoryRecord {
+  id: string;
+  type: 'outline' | 'analysis';
+  title: string;
+  data: OutlineData | AnalysisResult;
+  timestamp: Date;
+}
+
+interface FineTuneRequest {
+  section: keyof AnalysisResult;
+  instruction: string;
+}
+
+// 语义切片接口
+interface TranscriptChunk {
+  id: string;
+  content: string;
+  speaker?: string;
+  startIndex: number;
+  endIndex: number;
+}
+
+// System Prompt for 精准原文溯源
+const SYSTEM_PROMPT = `你是QualiProbe质研探针，一个专业的定性研究AI助手。
+
+【核心原则】
+1. 当用户询问"原话"、"证据"、"原文"、"谁说的"等要求时，你必须进入【精准原文溯源模式】
+2. 严禁任何形式的概括、总结或改写
+3. 必须从原始笔录切片中提取100%还原的句子
+4. 使用格式：『原文内容』
+5. 如果找不到，诚实回答："在该段落中未发现具体原话"
+
+【原文溯源模式】
+- 扫描所有语义切片
+- 匹配最相关的原始片段
+- 完整保留标点符号和语气
+- 不添加任何解释或分析
+
+【正常对话模式】
+- 提供专业的研究建议
+- 协助优化访谈设计
+- 分析用户需求并提供解决方案`;
+
+export default function QualiProbe() {
+  // 基础状态
+  const [apiKeyStatus, setApiKeyStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [showHelp, setShowHelp] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  
+  // 工作台状态
+  const [activeWorkbench, setActiveWorkbench] = useState<'outline' | 'analysis'>('outline');
+  const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([]);
+
+  // 表单状态
+  const [researchTopic, setResearchTopic] = useState('');
+  const [targetAudience, setTargetAudience] = useState('');
+  const [researchPurpose, setResearchPurpose] = useState('');
+  const [interviewType, setInterviewType] = useState<'IDI' | 'FGD'>('IDI');
+  const [interviewDuration, setInterviewDuration] = useState('60');
+  const [outputLanguage, setOutputLanguage] = useState<'中文' | '英文' | '日文' | '双语对照'>('中文');
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+
+  // 大纲相关状态
+  const [outlineData, setOutlineData] = useState<OutlineData | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingOutline, setEditingOutline] = useState<OutlineData | null>(null);
+
+  // 笔录和分析状态
+  const [transcriptText, setTranscriptText] = useState('');
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [thinkingStep, setThinkingStep] = useState('');
+
+  // 对话状态
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [isChatting, setIsChatting] = useState(false);
+  
+  // 微调功能状态
+  const [fineTuneBubble, setFineTuneBubble] = useState<{
+    section: keyof AnalysisResult;
+    isVisible: boolean;
+  } | null>(null);
+  const [fineTuneInstruction, setFineTuneInstruction] = useState('');
+  const [isFineTuning, setIsFineTuning] = useState(false);
+
+  // 语义切片状态 - 增强版
+  const [transcriptChunks, setTranscriptChunks] = useState<TranscriptChunk[]>([]);
+  
+  // UI状态 - 空间降噪重构
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(true); // 默认收起
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(true); // 默认收起
+  
+  // 错误Toast状态
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isAgentThinking, setIsAgentThinking] = useState(false);
+  const [highlightedChunkId, setHighlightedChunkId] = useState<string | null>(null);
+  
+  // 引用联动状态
+  const transcriptRef = useRef<HTMLDivElement>(null);
+
+  // 错误处理函数
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setShowErrorToast(true);
+    setTimeout(() => setShowErrorToast(false), 5000);
+  };
+
+  // 增强版语义切片函数 - 支持Speaker标签
+  const createSemanticChunks = (text: string): TranscriptChunk[] => {
+    const chunks: TranscriptChunk[] = [];
+    const chunkSize = 400; // 300-500字之间
+    let currentIndex = 0;
+    
+    while (currentIndex < text.length) {
+      const endIndex = Math.min(currentIndex + chunkSize, text.length);
+      let chunk = text.substring(currentIndex, endIndex);
+      
+      // 尝试在句子边界切分
+      if (endIndex < text.length) {
+        const lastSentenceEnd = Math.max(
+          chunk.lastIndexOf('。'),
+          chunk.lastIndexOf('！'),
+          chunk.lastIndexOf('？'),
+          chunk.lastIndexOf('\n')
+        );
+        
+        if (lastSentenceEnd > chunkSize * 0.6) { // 至少保留60%的内容
+          chunk = chunk.substring(0, lastSentenceEnd + 1);
+        }
+      }
+      
+      // 检测Speaker标签
+      let speaker: string | undefined;
+      const speakerMatch = chunk.match(/^(受访者|用户|A|B|主持人|访客)[:：]/);
+      if (speakerMatch) {
+        speaker = speakerMatch[1];
+      }
+      
+      chunks.push({
+        id: `chunk_${chunks.length + 1}`,
+        content: chunk.trim(),
+        speaker,
+        startIndex: currentIndex,
+        endIndex: currentIndex + chunk.length
+      });
+      
+      currentIndex += chunk.length;
+    }
+    
+    return chunks;
+  };
+
+  // 更新笔录时自动切片
+  useEffect(() => {
+    if (transcriptText) {
+      const chunks = createSemanticChunks(transcriptText);
+      setTranscriptChunks(chunks);
+      console.log(`🔍 笔录已切片为 ${chunks.length} 个语义块`);
+    } else {
+      setTranscriptChunks([]);
+    }
+  }, [transcriptText]);
+
+  // 精准原文溯源函数
+  const searchOriginalText = (keyword: string): { chunkId: string; text: string } | undefined => {
+    console.log(`🔍 开始精准溯源: "${keyword}"`);
+    
+    for (const chunk of transcriptChunks) {
+      if (chunk.content.includes(keyword)) {
+        // 提取包含关键词的完整句子
+        const sentences = chunk.content.match(/[^。！？\n]*[。！？]/g) || [];
+        const matchingSentences = sentences.filter(sentence => 
+          sentence.includes(keyword) && sentence.trim().length > 5
+        );
+        
+        if (matchingSentences.length > 0) {
+          console.log(`✅ 找到原文证据: ${matchingSentences[0]}`);
+          return {
+            chunkId: chunk.id,
+            text: matchingSentences[0].trim()
+          };
+        }
+      }
+    }
+    
+    console.log(`❌ 未找到原文证据: "${keyword}"`);
+    return undefined;
+  };
+
+  // 引用联动 - 滚动到指定位置
+  const scrollToEvidence = (chunkId: string) => {
+    setHighlightedChunkId(chunkId);
+    
+    setTimeout(() => {
+      if (transcriptRef.current) {
+        const chunkElement = transcriptRef.current.querySelector(`[data-chunk-id="${chunkId}"]`);
+        if (chunkElement) {
+          chunkElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          // 添加高亮动画
+          chunkElement.classList.add('ring-2', 'ring-blue-500', 'ring-opacity-50');
+          setTimeout(() => {
+            chunkElement.classList.remove('ring-2', 'ring-blue-500', 'ring-opacity-50');
+          }, 3000);
+        }
+      }
+    }, 100);
+  };
+
+  // 文件上传处理
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      let text = '';
+      
+      if (file.type === 'text/plain') {
+        text = await file.text();
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        // 使用mammoth库解析DOCX文件
+        const mammoth = await import('mammoth');
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        text = result.value;
+      }
+
+      // 清洗文本
+      const cleanedText = text
+        .replace(/[呃啊嗯那个这个就是说然后呢对吧你知道，。！？、\s]/gi, '')
+        .replace(/\n\s*\n\s*\n/g, '\n\n')
+        .trim();
+
+      setTranscriptText(cleanedText);
+    } catch (error) {
+      console.error('文件读取失败:', error);
+      showError('文件读取失败，请检查文件格式后重试');
+    }
+  };
+
+  // 生成大纲 - 多语言版本
+  const handleGenerate = async () => {
+    if (!researchTopic.trim() || !targetAudience.trim() || !researchPurpose.trim()) {
+      alert('请填写完整的研究信息');
+      return;
+    }
+
+    setIsGenerating(true);
+    setThinkingStep('正在分析研究需求...');
+
+    try {
+      const params = {
+        researchTopic,
+        targetAudience,
+        researchPurpose,
+        interviewType,
+        interviewDuration,
+        outputLanguage, // 添加语言参数
+        selectedTemplate: 'basic' as const
+      };
+
+      // 模拟多语言生成逻辑
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 根据语言生成不同风格的大纲
+      let result: OutlineData;
+      
+      if (outputLanguage === '英文') {
+        result = {
+          project_title: `Professional IDI Study: ${researchTopic}`,
+          sections: [
+            {
+              id: 1,
+              title: "Introduction & Rapport Building",
+              duration: "10 minutes",
+              questions: [
+                "Could you please introduce yourself and tell me about your background?",
+                "How familiar are you with [product/service]?",
+                "What are your expectations for today's discussion?"
+              ],
+              notes: "Establish warm atmosphere, explain confidentiality, set expectations"
+            },
+            {
+              id: 2,
+              title: "Core Experience Exploration",
+              duration: "25 minutes",
+              questions: [
+                "Could you walk me through your typical usage scenario?",
+                "What aspects work well for you? What challenges do you encounter?",
+                "How does this compare to alternative solutions you've tried?"
+              ],
+              notes: "Focus on behavioral patterns, pain points, and decision criteria"
+            },
+            {
+              id: 3,
+              title: "Deep Dive & Future Needs",
+              duration: "20 minutes",
+              questions: [
+                "If you could change one thing, what would it be and why?",
+                "What features would make your experience significantly better?",
+                "How do you see your needs evolving in the next 6-12 months?"
+              ],
+              notes: "Explore unmet needs, improvement opportunities, and future expectations"
+            },
+            {
+              id: 4,
+              title: "Wrap-up & Next Steps",
+              duration: "5 minutes",
+              questions: [
+                "Is there anything else you'd like to share?",
+                "May I contact you for follow-up questions if needed?"
+              ],
+              notes: "Express gratitude, summarize key points, outline next steps"
+            }
+          ]
+        };
+      } else if (outputLanguage === '日文') {
+        result = {
+          project_title: `${researchTopic}に関する専門インタビュー調査`,
+          sections: [
+            {
+              id: 1,
+              title: "導入とリラップ構築",
+              duration: "10分",
+              questions: [
+                "まず、自己紹介をお願いできますか？",
+                "製品・サービスについての知識度をお聞かせください",
+                "本日のインタビューに対する期待をお聞かせいただけますか"
+              ],
+              notes: "雰囲気作り、秘密保持の説明、期待値の設定"
+            },
+            {
+              id: 2,
+              title: "コア体験の探索",
+              duration: "25分",
+              questions: [
+                "典型的な使用シナリオについて説明していただけますか",
+                "どの点がうまく機能していますか？どのような課題がありますか",
+                "他の代替案と比較してどうですか"
+              ],
+              notes: "行動パターン、ペインポイント、決定基準に焦点"
+            },
+            {
+              id: 3,
+              title: "深掘りと将来ニーズ",
+              duration: "20分",
+              questions: [
+                "一つだけ変えられるとしたら、何を変えたいですか",
+                "体験を大幅に改善する機能は何ですか",
+                "今後6-12ヶ月でニーズはどう変わると見ていますか"
+              ],
+              notes: "未充足ニーズ、改善機会、将来期待の探索"
+            },
+            {
+              id: 4,
+              title: "まとめと次のステップ",
+              duration: "5分",
+              questions: [
+                "他に何か共有したいことはありますか",
+                "追質問のため連絡してもよろしいですか"
+              ],
+              notes: "感謝の表明、要点の要約、次のステップの概要"
+            }
+          ]
+        };
+      } else if (outputLanguage === '双语对照') {
+        result = {
+          project_title: `${researchTopic} | Professional IDI Study`,
+          sections: [
+            {
+              id: 1,
+              title: "开场介绍 | Introduction & Rapport Building",
+              duration: "10分钟 | 10 minutes",
+              questions: [
+                "请介绍一下您的背景 | Could you please introduce yourself and tell me about your background?",
+                "您对[产品/服务]的熟悉程度如何？| How familiar are you with [product/service]?",
+                "对今天的讨论有什么期待？| What are your expectations for today's discussion?"
+              ],
+              notes: "建立融洽氛围，说明保密性，设定预期 | Establish warm atmosphere, explain confidentiality, set expectations"
+            },
+            {
+              id: 2,
+              title: "核心体验探索 | Core Experience Exploration",
+              duration: "25分钟 | 25 minutes",
+              questions: [
+                "能描述一下您的典型使用场景吗？| Could you walk me through your typical usage scenario?",
+                "哪些方面运作良好？遇到什么挑战？| What aspects work well for you? What challenges do you encounter?",
+                "与其他替代方案相比如何？| How does this compare to alternative solutions you've tried?"
+              ],
+              notes: "关注行为模式、痛点和决策标准 | Focus on behavioral patterns, pain points, and decision criteria"
+            },
+            {
+              id: 3,
+              title: "深度挖掘与未来需求 | Deep Dive & Future Needs",
+              duration: "20分钟 | 20 minutes",
+              questions: [
+                "如果能改变一件事，会是什么？为什么？| If you could change one thing, what would it be and why?",
+                "什么功能能让您的体验显著改善？| What features would make your experience significantly better?",
+                "您认为未来6-12个月需求会如何变化？| How do you see your needs evolving in the next 6-12 months?"
+              ],
+              notes: "探索未满足需求、改进机会和未来期望 | Explore unmet needs, improvement opportunities, and future expectations"
+            },
+            {
+              id: 4,
+              title: "总结与后续步骤 | Wrap-up & Next Steps",
+              duration: "5分钟 | 5 minutes",
+              questions: [
+                "还有其他想分享的吗？| Is there anything else you'd like to share?",
+                "我可以联系您进行后续问题吗？| May I contact you for follow-up questions if needed?"
+              ],
+              notes: "表达感谢，总结要点，概述后续步骤 | Express gratitude, summarize key points, outline next steps"
+            }
+          ]
+        };
+      } else {
+        // 默认中文版本
+        result = {
+          project_title: `${researchTopic} - 深度访谈大纲`,
+          sections: [
+            {
+              id: 1,
+              title: "开场介绍与热身",
+              duration: "10分钟",
+              questions: [
+                "请先简单介绍一下您的背景",
+                "您对[产品/服务]的熟悉程度如何？",
+                "对今天的访谈有什么期待？"
+              ],
+              notes: "建立融洽氛围，说明访谈目的和保密性"
+            },
+            {
+              id: 2,
+              title: "核心使用体验",
+              duration: "25分钟",
+              questions: [
+                "能描述一下您平时是如何使用[产品/服务]的吗？",
+                "在使用过程中，哪些方面让您觉得满意？哪些方面遇到了困难？",
+                "与其他类似产品相比，您觉得有什么不同？"
+              ],
+              notes: "深入了解使用场景、痛点和决策因素"
+            },
+            {
+              id: 3,
+              title: "深度挖掘与需求探索",
+              duration: "20分钟",
+              questions: [
+                "如果可以改变一个功能，您希望是什么？为什么？",
+                "什么样的功能或改进能让您的体验变得更好？",
+                "您认为未来6-12个月，您的需求会有什么变化？"
+              ],
+              notes: "探索潜在需求、改进机会和未来期望"
+            },
+            {
+              id: 4,
+              title: "总结与后续",
+              duration: "5分钟",
+              questions: [
+                "还有其他想要分享的吗？",
+                "如果后续有补充问题，方便联系您吗？"
+              ],
+              notes: "表达感谢，总结要点，说明后续安排"
+            }
+          ]
+        };
+      }
+
+      setOutlineData(result);
+      setIsEditing(false);
+      
+      // 保存到历史记录
+      const newRecord: HistoryRecord = {
+        id: Date.now().toString(),
+        type: 'outline',
+        title: result.project_title,
+        data: result,
+        timestamp: new Date()
+      };
+      
+      setHistoryRecords(prev => [newRecord, ...prev].slice(0, 10));
+    } catch (error) {
+      console.error('生成失败:', error);
+      showError('生成大纲失败，请检查网络连接后重试');
+    } finally {
+      setIsGenerating(false);
+      setThinkingStep('');
+    }
+  };
+
+  // 分析笔录
+  const analyzeTranscript = async () => {
+    if (!transcriptText.trim()) {
+      showError('请输入访谈笔录');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setThinkingStep('正在分析访谈内容...');
+    
+    // 微交互升级：触发Agent图标运转效果
+    if (isRightSidebarCollapsed) {
+      // 展开Agent以显示运转效果
+      setIsRightSidebarCollapsed(false);
+    }
+
+    try {
+      // 模拟AI分析步骤
+      const steps = [
+        '正在提取关键信息...',
+        '正在分析用户需求...',
+        '正在生成洞察报告...'
+      ];
+
+      for (let i = 0; i < steps.length; i++) {
+        setThinkingStep(steps[i]);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // 模拟分析结果
+      const mockResult: AnalysisResult = {
+        background: `受访者是一位${targetAudience || '用户'}，在访谈中详细描述了关于${researchTopic || '相关产品'}的使用体验。访谈采用${interviewType === 'IDI' ? '深度访谈' : '焦点小组'}形式，时长约${interviewDuration}分钟。受访者表现出较高的参与度，提供了丰富的第一手资料。`,
+        outline: `基于访谈内容，建议的研究大纲包括：1) 用户体验现状分析，重点关注使用场景和痛点；2) 需求层次挖掘，从功能需求到情感需求；3) 竞品对比分析，了解用户选择偏好；4) 改进建议收集，形成具体的优化方案。每个环节都应结合${researchPurpose || '研究目标'}进行深度探讨。`,
+        coreInsights: `核心发现：1) 用户最关注的是${researchTopic || '产品'}的易用性和实用性；2) 存在明显的使用门槛，需要优化引导流程；3) 用户对个性化功能有强烈需求；4) 价格敏感度较高，性价比是重要考量因素。这些洞察为后续产品迭代提供了明确方向。`,
+        actionItems: `后续行动建议：1) 进行更大规模的用户验证，确认洞察的普适性；2) 优先解决易用性问题，降低使用门槛；3) 深入研究个性化需求的具体场景；4) 分析竞品优势，制定差异化策略；5) 建立持续的用户反馈机制，跟踪需求变化。建议在2周内完成初步方案设计。`
+      };
+
+      setAnalysisResult(mockResult);
+      
+      // 保存到历史记录
+      const newRecord: HistoryRecord = {
+        id: Date.now().toString(),
+        type: 'analysis',
+        title: `${researchTopic} - 分析报告`,
+        data: mockResult,
+        timestamp: new Date()
+      };
+      
+      setHistoryRecords(prev => [newRecord, ...prev].slice(0, 10));
+    } catch (error) {
+      console.error('分析失败:', error);
+      showError('分析失败，请检查网络连接后重试');
+    } finally {
+      setIsAnalyzing(false);
+      setThinkingStep('');
+    }
+  };
+
+  // 增强版交互式对话 - 洞察引擎智能关联
+  const handleChat = async () => {
+    if (!currentMessage.trim()) return;
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: currentMessage,
+      timestamp: new Date()
+    };
+
+    setChatMessages((prev: ChatMessage[]) => [...prev, userMessage]);
+    setCurrentMessage('');
+    setIsChatting(true);
+    setIsAgentThinking(true);
+
+    try {
+      // 模拟AI回复
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      let responseContent = '';
+      let evidence: { chunkId: string; text: string } | undefined;
+      
+      // 检查是否需要进入【精准原文溯源模式】
+      const needsOriginalText = currentMessage.includes('原话') || 
+                              currentMessage.includes('原文') || 
+                              currentMessage.includes('怎么说') || 
+                              currentMessage.includes('具体说了') || 
+                              currentMessage.includes('查看原话') || 
+                              currentMessage.includes('提供证据') || 
+                              currentMessage.includes('证据') || 
+                              currentMessage.includes('结论来源') || 
+                              currentMessage.includes('来源') ||
+                              currentMessage.includes('谁说的');
+      
+      if (activeWorkbench === 'analysis' && analysisResult && needsOriginalText) {
+        // 进入【精准原文溯源模式】
+        setThinkingStep('🔍 正在扫描笔录切片以获取证据...');
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        
+        const keyword = currentMessage.replace(/原话|原文|怎么说|具体说了|查看原话|提供证据|证据|结论来源|来源|谁说的|关于|的|了|吗|？|。|！/g, '').trim();
+        
+        evidence = searchOriginalText(keyword);
+        
+        if (evidence) {
+          // 强制引用格式 - 严禁概括
+          responseContent = `『${evidence.text}』`;
+        } else {
+          // 诚实回答未找到
+          responseContent = `在该段落中未发现关于"${keyword}"的具体原话。
+
+建议尝试：
+• 使用不同的关键词
+• 检查相关段落
+• 或者告诉我您想了解的具体方面`;
+        }
+      } else {
+        // 洞察引擎智能关联模式
+        const message = currentMessage.toLowerCase();
+        
+        // 检查是否在询问目标受众相关的问题
+        if (message.includes('目标受众') || message.includes('受众') || message.includes('用户') || message.includes('选对')) {
+          responseContent = `基于你当前的研究主题"${researchTopic || '未设置'}"和研究目的"${researchPurpose || '未设置'}"，我来分析一下目标受众的选择：
+
+**当前目标受众：**${targetAudience || '未设置'}
+
+**分析建议：**
+1. 如果你的研究涉及${researchTopic || '产品'}的使用体验，${targetAudience || '目标受众'}是一个很好的起点
+2. 建议进一步细分：可以考虑年龄层、使用频率、专业背景等维度
+3. 如果${researchPurpose || '研究目的'}偏向深度挖掘，建议选择有3-6个月使用经验的用户
+
+你觉得这个分析如何？需要我帮你优化受众定义吗？`;
+        }
+        // 检查是否在询问研究主题相关的问题
+        else if (message.includes('主题') || message.includes('研究') || message.includes('方向')) {
+          responseContent = `关于你的研究主题"${researchTopic || '未设置'}"，我有一些建议：
+
+**主题分析：**
+- 当前主题聚焦明确，有利于深度访谈
+- 建议从以下角度深化：使用场景、痛点体验、改进期望
+
+**优化建议：**
+1. 可以考虑加入竞品对比维度
+2. 如果是新产品研究，建议增加用户动机探索
+3. 考虑不同用户群体的差异化需求
+
+你想从哪个角度深入探讨？`;
+        }
+        // 检查是否在询问研究目的相关的问题
+        else if (message.includes('目的') || message.includes('目标') || message.includes('想要')) {
+          responseContent = `关于你的研究目的"${researchPurpose || '未设置'}"，我来帮你梳理：
+
+**目的解析：**
+- 目标清晰，有利于设计针对性问题
+- 建议量化具体指标：如用户满意度提升X%、转化率提升Y%等
+
+**执行建议：**
+1. 可以拆分为3-4个具体的研究假设
+2. 建议优先级排序：核心需求 > 次要需求 > 边缘需求
+3. 考虑时间限制，聚焦最重要的2-3个目标
+
+需要我帮你优化研究假设吗？`;
+        }
+        // 智能大纲优化建议
+        else if (activeWorkbench === 'outline' && outlineData) {
+          responseContent = `基于你当前的"${researchTopic || '研究主题'}"访谈大纲，我建议：
+
+**大纲优化建议：**
+1. **开场环节**：建议增加破冰问题，让受访者更放松
+2. **主讨论环节**：可以加入具体的使用场景询问
+3. **收尾环节**：建议补充"还有什么想补充的吗"
+
+**问题质量提升：**
+- 多用"能否描述一下..."替代"是否..."
+- 增加"最满意/最不满意"的对比问题
+- 考虑加入"如果有魔法棒，你最想改变什么"
+
+你希望我帮你优化哪个环节？`;
+        }
+        // 分析工作台的专业建议
+        else if (activeWorkbench === 'analysis') {
+          if (analysisResult) {
+            responseContent = `基于你的"${researchTopic || '研究主题'}"分析结果，我提供以下洞察：
+
+**核心发现验证：**
+- 你的研究目的"${researchPurpose || '未设置'}"在分析中得到了很好的回应
+- 建议重点关注：${analysisResult.coreInsights.slice(0, 100)}...
+
+**下一步行动：**
+1. 可以基于这些洞察优化产品策略
+2. 建议进行更大规模的用户验证
+3. 考虑制定具体的改进时间表
+
+需要我帮你制定详细的行动计划吗？`;
+          } else {
+            responseContent = `作为你的洞察引擎，我已准备好分析你的访谈内容：
+
+**当前状态：**
+- 研究主题：${researchTopic || '未设置'}
+- 目标受众：${targetAudience || '未设置'}
+- 研究目的：${researchPurpose || '未设置'}
+
+**分析准备：**
+请上传访谈笔录，我将为你提供：
+1. 深度内容分析
+2. 核心洞察提取
+3. 行动建议制定
+
+你的笔录准备好了吗？`;
+          }
+        }
+        // 默认智能回复
+        else {
+          responseContent = `作为QualiProbe洞察引擎，我已读取你的研究信息：
+
+**当前项目：**
+- 主题：${researchTopic || '未设置'}
+- 受众：${targetAudience || '未设置'}
+- 目的：${researchPurpose || '未设置'}
+
+**我可以帮你：**
+• 优化访谈大纲设计
+• 深度分析访谈内容
+• 提供专业研究建议
+• 提取精准原文证据
+
+请告诉我你具体需要哪方面的帮助？`;
+        }
+      }
+      
+      const assistantMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: responseContent,
+        timestamp: new Date(),
+        evidence
+      };
+
+      setChatMessages((prev: ChatMessage[]) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('对话失败:', error);
+      showError('对话失败，请稍后重试');
+    } finally {
+      setIsChatting(false);
+      setIsAgentThinking(false);
+      setThinkingStep('');
+    }
+  };
+
+  // 编辑功能
+  const handleEdit = () => {
+    setEditingOutline(outlineData ? { ...outlineData } : null);
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingOutline) {
+      setOutlineData(editingOutline);
+      setIsEditing(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditingOutline(null);
+  };
+
+  const handleSectionEdit = (index: number, field: keyof Section, value: any) => {
+    if (!editingOutline) return;
+    
+    const updatedSections = [...editingOutline.sections];
+    updatedSections[index] = {
+      ...updatedSections[index],
+      [field]: value
+    };
+    
+    setEditingOutline({
+      ...editingOutline,
+      sections: updatedSections
+    });
+  };
+
+  const addSection = () => {
+    if (!editingOutline) return;
+    
+    const newSection: Section = {
+      id: editingOutline.sections.length + 1,
+      title: '新环节',
+      duration: '15分钟',
+      questions: ['请在此添加问题'],
+      notes: '该环节的研究目的和注意事项'
+    };
+    
+    setEditingOutline({
+      ...editingOutline,
+      sections: [...editingOutline.sections, newSection]
+    });
+  };
+
+  const removeSection = (index: number) => {
+    if (!editingOutline) return;
+    
+    const updatedSections = editingOutline.sections.filter((_, i) => i !== index);
+    setEditingOutline({
+      ...editingOutline,
+      sections: updatedSections
+    });
+  };
+
+  // 微调功能
+  const handleFineTune = async (section: keyof AnalysisResult) => {
+    if (!fineTuneInstruction.trim() || !analysisResult) return;
+
+    setIsFineTuning(true);
+    try {
+      // 模拟AI微调
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const updatedResult = {
+        ...analysisResult,
+        [section]: `${analysisResult[section]}\n\n[微调后] 基于"${fineTuneInstruction}"的优化内容已添加。`
+      };
+      
+      setAnalysisResult(updatedResult);
+      setFineTuneBubble(null);
+      setFineTuneInstruction('');
+    } catch (error) {
+      console.error('微调失败:', error);
+      alert('微调失败，请重试');
+    } finally {
+      setIsFineTuning(false);
+    }
+  };
+
+  const showFineTuneBubble = (section: keyof AnalysisResult) => {
+    setFineTuneBubble({ section, isVisible: true });
+  };
+
+  const hideFineTuneBubble = () => {
+    setFineTuneBubble(null);
+    setFineTuneInstruction('');
+  };
+
+  // 导出功能
+  const handleExport = () => {
+    if (!outlineData) {
+      alert('请先生成大纲');
+      return;
+    }
+    exportToWord(outlineData);
+  };
+
+  // 导出完整报告
+  const exportFullReport = () => {
+    if (!analysisResult) {
+      alert('请先完成分析');
+      return;
+    }
+
+    const report = `
+QualiProbe 调研报告
+生成时间：${new Date().toLocaleString()}
+
+【背景】
+${analysisResult.background}
+
+【访谈大纲】
+${analysisResult.outline}
+
+【核心观点】
+${analysisResult.coreInsights}
+
+【待办事项】
+${analysisResult.actionItems}
+
+${chatMessages.length > 0 ? `\n【深度对话】\n${chatMessages.map((msg: ChatMessage) => 
+  `${msg.type === 'user' ? '用户' : 'AI Agent'}: ${msg.content}`
+).join('\n\n')}` : ''}
+
+原始笔录：
+${transcriptText}
+    `.trim();
+
+    const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `QualiProbe_分析报告_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // 从历史记录加载
+  const loadFromHistory = (record: HistoryRecord) => {
+    if (record.type === 'outline') {
+      setOutlineData(record.data as OutlineData);
+      setActiveWorkbench('outline');
+    } else {
+      setAnalysisResult(record.data as AnalysisResult);
+      setActiveWorkbench('analysis');
+    }
+  };
+
+  useEffect(() => {
+    // 检查API密钥状态
+    const checkApiKey = async () => {
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY;
+        if (apiKey) {
+          setApiKeyStatus('ready');
+        } else {
+          setApiKeyStatus('error');
+        }
+      } catch (error) {
+        setApiKeyStatus('error');
+      }
+    };
+
+    checkApiKey();
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex">
+      {/* 左侧：项目记忆 - 收起状态 */}
+      <div className={`${isLeftSidebarCollapsed ? 'w-10' : 'w-80'} bg-slate-900/50 border-r border-slate-800/50 flex flex-col transition-all duration-300`}>
+        {!isLeftSidebarCollapsed ? (
+          <>
+            <div className="p-4 border-b border-slate-800/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mr-3">
+                    <Brain className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-medium text-sm">项目记忆</h3>
+                    <p className="text-gray-400 text-xs">历史记录</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsLeftSidebarCollapsed(true)}
+                  className="text-gray-400 hover:text-white p-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            
+            {/* 记忆区内容 */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="space-y-4">
+                <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
+                  <h4 className="text-blue-300 font-medium mb-3 text-sm">项目记忆</h4>
+                  <div className="space-y-3">
+                    {researchTopic && (
+                      <div className="text-blue-200 text-sm">
+                        <span className="font-medium">研究主题：</span>{researchTopic}
+                      </div>
+                    )}
+                    {targetAudience && (
+                      <div className="text-blue-200 text-sm">
+                        <span className="font-medium">目标受众：</span>{targetAudience}
+                      </div>
+                    )}
+                    {researchPurpose && (
+                      <div className="text-blue-200 text-sm">
+                        <span className="font-medium">研究目的：</span>{researchPurpose.slice(0, 50)}...
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="bg-purple-900/20 border border-purple-800/30 rounded-lg p-4">
+                  <h4 className="text-purple-300 font-medium mb-3 text-sm">历史记录</h4>
+                  {historyRecords.length > 0 ? (
+                    <div className="space-y-3">
+                      {historyRecords.slice(0, 5).map((record) => (
+                        <div
+                          key={record.id}
+                          onClick={() => loadFromHistory(record)}
+                          className="bg-purple-800/30 rounded p-3 cursor-pointer hover:bg-purple-800/50 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              record.type === 'outline' ? 'bg-blue-900/50 text-blue-300' : 'bg-green-900/50 text-green-300'
+                            }`}>
+                              {record.type === 'outline' ? '大纲' : '分析'}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {record.timestamp.toLocaleDateString()}
+                            </span>
+                          </div>
+                          <h5 className="text-white text-sm font-medium truncate mt-2">{record.title}</h5>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-purple-200 text-sm">暂无历史记录</p>
+                  )}
+                </div>
+                
+                {transcriptChunks.length > 0 && (
+                  <div className="bg-green-900/20 border border-green-800/30 rounded-lg p-4">
+                    <h4 className="text-green-300 font-medium mb-3 text-sm">笔录切片信息</h4>
+                    <div className="text-green-200 text-sm space-y-1">
+                      <div>已切分 {transcriptChunks.length} 个语义块</div>
+                      <div>平均长度 {Math.round(transcriptChunks.reduce((acc, chunk) => acc + chunk.content.length, 0) / transcriptChunks.length)} 字</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          /* 收起状态 - 仅显示图标 */
+          <div className="flex flex-col items-center py-6">
+            <button
+              onClick={() => setIsLeftSidebarCollapsed(false)}
+              className="text-gray-400 hover:text-white p-2 mb-4"
+            >
+              <History className="w-5 h-5" />
+            </button>
+            <div className="text-gray-500 text-xs">记忆</div>
+          </div>
+        )}
+      </div>
+
+      {/* 中间：主工作区 - 90% 宽度 */}
+      <div className="flex-1 flex flex-col">
+        {/* 顶部导航 - 极简处理 */}
+        <div className="bg-slate-900/30 border-b border-slate-800/50 px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className={`text-2xl font-bold text-white mb-1 tracking-wider ${
+                apiKeyStatus === 'ready' ? '' : 'text-gray-600 border border-red-500/30'
+              }`}>QualiProbe | 洞察引擎</h1>
+              <p className="text-gray-400 text-sm mb-3">重构定性研究的 AI Agent</p>
+              
+              {/* 工作台切换 - 放在标题下面 */}
+              <div className="flex space-x-2 bg-slate-800/50 p-1 rounded-lg">
+                <button
+                  onClick={() => setActiveWorkbench('outline')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    activeWorkbench === 'outline' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  <Edit3 className="w-3.5 h-3.5 inline mr-1.5" />
+                  大纲设计
+                </button>
+                <button
+                  onClick={() => setActiveWorkbench('analysis')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    activeWorkbench === 'analysis' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  <Brain className="w-3.5 h-3.5 inline mr-1.5" />
+                  访谈分析
+                </button>
+              </div>
+            </div>
+            
+            {/* 右侧图标 - 向右对齐 */}
+            <div className="flex items-center space-x-3">
+              <Button
+                onClick={() => setShowHelp(!showHelp)}
+                variant="ghost"
+                size="sm"
+                className="text-gray-400 hover:text-white h-8 w-8 p-0"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </Button>
+              
+              <Button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                variant="ghost"
+                size="sm"
+                className="text-gray-400 hover:text-white h-8 w-8 p-0"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* 主工作区 */}
+        <div className="flex-1 overflow-y-auto p-8">
+          {activeWorkbench === 'outline' && (
+            <>
+              {/* 参数设置区 - 光影微调 */}
+              <div className="bg-slate-900/20 border border-white/5 rounded-lg p-8 mb-8 shadow-lg shadow-black/20 backdrop-blur-sm">
+                <h2 className="text-xl font-bold text-white mb-8">访谈参数设置</h2>
+                
+                <div className="grid grid-cols-2 gap-8">
+                  <div>
+                    <Label className="text-gray-300 text-sm">研究主题</Label>
+                    <Input
+                      value={researchTopic}
+                      onChange={(e) => setResearchTopic(e.target.value)}
+                      className="mt-3 bg-slate-800/50 border-slate-700/50 text-white placeholder-gray-500"
+                      placeholder="例如：用户体验研究"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-gray-300 text-sm">目标受众</Label>
+                    <Input
+                      value={targetAudience}
+                      onChange={(e) => setTargetAudience(e.target.value)}
+                      className="mt-3 bg-slate-800/50 border-slate-700/50 text-white placeholder-gray-500"
+                      placeholder="例如：年轻白领"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-gray-300 text-sm">研究目的</Label>
+                    <Textarea
+                      value={researchPurpose}
+                      onChange={(e) => setResearchPurpose(e.target.value)}
+                      className="mt-3 bg-slate-800/50 border-slate-700/50 text-white placeholder-gray-500"
+                      placeholder="例如：了解用户对产品的使用习惯和痛点"
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-gray-300 text-sm">访谈类型</Label>
+                      <Select value={interviewType} onValueChange={(value: 'IDI' | 'FGD') => setInterviewType(value)}>
+                        <SelectTrigger className="mt-3 bg-slate-800/50 border-slate-700/50 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800/50 border-slate-700/50">
+                          <SelectItem value="IDI" className="text-white">深度访谈 (IDI)</SelectItem>
+                          <SelectItem value="FGD" className="text-white">焦点小组 (FGD)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-gray-300 text-sm">预计时长</Label>
+                      <Select value={interviewDuration} onValueChange={setInterviewDuration}>
+                        <SelectTrigger className="mt-3 bg-slate-800/50 border-slate-700/50 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800/50 border-slate-700/50">
+                          <SelectItem value="30" className="text-white">30分钟</SelectItem>
+                          <SelectItem value="45" className="text-white">45分钟</SelectItem>
+                          <SelectItem value="60" className="text-white">60分钟</SelectItem>
+                          <SelectItem value="90" className="text-white">90分钟</SelectItem>
+                          <SelectItem value="120" className="text-white">120分钟</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  {/* 语言选择器 - 深度定制 */}
+                  <div className="col-span-2">
+                    <Label className="text-gray-300 text-sm flex items-center">
+                      <span className="mr-2">🌐</span>
+                      输出语言 (Output Language)
+                    </Label>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                        className="mt-3 w-full bg-slate-800/50 border border-white/10 text-white rounded-lg px-4 py-3 text-left flex items-center justify-between hover:bg-slate-700/50 transition-all duration-200 backdrop-blur-sm"
+                      >
+                        <span className="flex items-center">
+                          {outputLanguage === '中文' && '🇨🇳 中文'}
+                          {outputLanguage === '英文' && '🇺🇸 英文'}
+                          {outputLanguage === '日文' && '🇯🇵 日文'}
+                          {outputLanguage === '双语对照' && '🌐 双语对照'}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showLanguageDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {showLanguageDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900/95 border border-white/10 rounded-lg shadow-2xl backdrop-blur-md z-50">
+                          <div className="py-2">
+                            {[
+                              { value: '中文', label: '🇨🇳 中文' },
+                              { value: '英文', label: '🇺🇸 英文' },
+                              { value: '日文', label: '🇯🇵 日文' },
+                              { value: '双语对照', label: '🌐 双语对照' }
+                            ].map((option) => (
+                              <button
+                                key={option.value}
+                                onClick={() => {
+                                  setOutputLanguage(option.value as '中文' | '英文' | '日文' | '双语对照');
+                                  setShowLanguageDropdown(false);
+                                }}
+                                className={`w-full px-4 py-3 text-left hover:bg-slate-700/50 transition-colors duration-150 flex items-center ${
+                                  outputLanguage === option.value ? 'bg-blue-600/20 text-blue-400' : 'text-white'
+                                }`}
+                              >
+                                {option.label}
+                                {outputLanguage === option.value && (
+                                  <Check className="w-4 h-4 ml-auto" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-center mt-8">
+                  <Button 
+                    onClick={handleGenerate}
+                    disabled={isGenerating || !researchTopic.trim() || !targetAudience.trim() || !researchPurpose.trim()}
+                    className="bg-blue-600 hover:bg-blue-700 px-8"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        生成中...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="w-4 h-4 mr-2" />
+                        生成访谈大纲
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* 大纲展示区 */}
+              {outlineData && !isEditing && (
+                <div className="bg-slate-900/20 border border-white/5 rounded-lg p-8 shadow-lg shadow-black/20 backdrop-blur-sm">
+                  <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-xl font-bold text-white">生成的访谈大纲</h2>
+                    <div className="flex space-x-3">
+                      <Button onClick={handleEdit} variant="outline" className="text-gray-400 border-slate-700/50 hover:text-white">
+                        <Edit3 className="w-4 h-4 mr-2" />
+                        编辑
+                      </Button>
+                      <Button onClick={handleExport} variant="outline" className="text-gray-400 border-slate-700/50 hover:text-white">
+                        <Download className="w-4 h-4 mr-2" />
+                        导出 Word
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="text-center mb-8">
+                    <h3 className="text-2xl font-bold text-white mb-3">{outlineData.project_title}</h3>
+                    <p className="text-gray-400">访谈大纲</p>
+                  </div>
+                  
+                  {outlineData.sections.map((section, index) => (
+                    <div key={section.id || index} className="border-l-4 border-blue-500 pl-6 mb-8">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-semibold text-white">{section.title}</h4>
+                        <span className="text-sm text-gray-400 bg-slate-800/50 px-3 py-1 rounded">
+                          <Clock className="w-3 h-3 inline mr-2" />
+                          {section.duration}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <h5 className="font-medium text-gray-300 mb-3">问题列表</h5>
+                          <ul className="space-y-3">
+                            {section.questions.map((question, qIndex) => (
+                              <li key={qIndex} className="flex items-start">
+                                <span className="text-blue-400 mr-3">•</span>
+                                <span className="text-gray-200">{question}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        
+                        {section.notes && (
+                          <div>
+                            <h5 className="font-medium text-gray-300 mb-3">备注</h5>
+                            <p className="text-gray-400 text-sm bg-slate-800/50 p-4 rounded">
+                              {section.notes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 编辑界面 */}
+              {outlineData && isEditing && editingOutline && (
+                <div className="bg-slate-900/20 border border-white/5 rounded-lg p-8 shadow-lg shadow-black/20 backdrop-blur-sm">
+                  <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-xl font-bold text-white">编辑访谈大纲</h2>
+                  </div>
+                  
+                  <div className="bg-slate-800/30 rounded-lg p-6 mb-8 shadow-lg shadow-black/10 backdrop-blur-sm">
+                    <Label className="text-gray-300 text-sm">项目标题</Label>
+                    <Input
+                      value={editingOutline.project_title}
+                      onChange={(e) => setEditingOutline({
+                        ...editingOutline,
+                        project_title: e.target.value
+                      })}
+                      className="mt-3 bg-slate-700/50 border-slate-600/50 text-white"
+                    />
+                  </div>
+                  
+                  {editingOutline.sections.map((section, index) => (
+                    <div key={section.id || index} className="bg-slate-800/30 rounded-lg p-6 mb-6 shadow-lg shadow-black/10 backdrop-blur-sm">
+                      <div className="flex items-center justify-between mb-6">
+                        <Input
+                          value={section.title}
+                          onChange={(e) => handleSectionEdit(index, 'title', e.target.value)}
+                          className="bg-slate-700/50 border-slate-600/50 text-white font-medium"
+                        />
+                        <Button
+                          onClick={() => removeSection(index)}
+                          variant="outline"
+                          size="sm"
+                          className="text-red-400 border-red-600/50 hover:text-red-300"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-6 mb-6">
+                        <div>
+                          <Label className="text-gray-300 text-sm">时长</Label>
+                          <Input
+                            value={section.duration}
+                            onChange={(e) => handleSectionEdit(index, 'duration', e.target.value)}
+                            className="mt-3 bg-slate-700/50 border-slate-600/50 text-white"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="mb-6">
+                        <Label className="text-gray-300 text-sm">问题列表</Label>
+                        <div className="space-y-3 mt-3">
+                          {section.questions.map((question, qIndex) => (
+                            <Input
+                              key={qIndex}
+                              value={question}
+                              onChange={(e) => {
+                                const newQuestions = [...section.questions];
+                                newQuestions[qIndex] = e.target.value;
+                                handleSectionEdit(index, 'questions', newQuestions);
+                              }}
+                              className="bg-slate-700/50 border-slate-600/50 text-white"
+                              placeholder={`问题 ${qIndex + 1}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <Label className="text-gray-300 text-sm">备注</Label>
+                        <Textarea
+                          value={section.notes}
+                          onChange={(e) => handleSectionEdit(index, 'notes', e.target.value)}
+                          className="mt-3 bg-slate-700/50 border-slate-600/50 text-white"
+                          placeholder="该环节的研究目的和注意事项"
+                          rows={3}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <div className="flex space-x-3">
+                    <Button onClick={addSection} variant="outline" className="text-gray-400 border-slate-700/50 hover:text-white">
+                      <Edit3 className="w-4 h-4 mr-2" />
+                      添加环节
+                    </Button>
+                    <Button onClick={handleSaveEdit} className="bg-green-600 hover:bg-green-700">
+                      保存修改
+                    </Button>
+                    <Button onClick={handleCancelEdit} variant="outline" className="text-gray-400 border-slate-700/50 hover:text-white">
+                      取消
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* 分析工作区 - 简化版本 */}
+          {activeWorkbench === 'analysis' && (
+            <>
+              {/* 直接显示上传笔录和分析功能 */}
+              <div className="bg-slate-900/20 border border-white/5 rounded-lg p-8 mb-8 shadow-lg shadow-black/20 backdrop-blur-sm">
+                {/* 状态检查和AI分析按钮 */}
+                <div className="grid grid-cols-2 gap-6 mb-8">
+                  <div className={`p-6 rounded-lg ${
+                    outlineData ? 'bg-green-900/20 border-green-800/30' : 'bg-slate-800/30 border-slate-700/50'
+                  }`}>
+                    <div className="flex items-center">
+                      <Edit3 className="w-5 h-5 mr-3 text-green-400" />
+                      <span className="font-medium text-white text-sm">访谈大纲</span>
+                    </div>
+                    <p className="text-gray-400 text-sm mt-2">
+                      {outlineData ? '大纲已准备就绪' : '请先在"大纲设计"中生成大纲'}
+                    </p>
+                  </div>
+                  
+                  <div className={`p-6 rounded-lg ${
+                    transcriptText ? 'bg-green-900/20 border-green-800/30' : 'bg-slate-800/30 border-slate-700/50'
+                  }`}>
+                    <div className="flex items-center">
+                      <FileText className="w-5 h-5 mr-3 text-blue-400" />
+                      <span className="font-medium text-white text-sm">访谈笔录</span>
+                    </div>
+                    <p className="text-gray-400 text-sm mt-2">
+                      {transcriptText ? '笔录已上传' : '请上传访谈笔录'}
+                    </p>
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={analyzeTranscript}
+                  disabled={!outlineData || !transcriptText || isAnalyzing || apiKeyStatus !== 'ready'}
+                  className="w-full bg-blue-600 hover:bg-blue-700 mb-8"
+                  size="lg"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      解析中...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="w-4 h-4 mr-2" />
+                      运行洞察解析
+                    </>
+                  )}
+                </Button>
+                
+                {/* 思考过程展示 */}
+                {thinkingStep && (
+                  <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
+                    <div className="flex items-center">
+                      <Brain className="w-4 h-4 text-blue-400 mr-3 animate-pulse" />
+                      <span className="text-blue-300 text-sm">{thinkingStep}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8">
+                {/* 分析结果 - 放在最上面 */}
+                {analysisResult && (
+                  <div className="space-y-8 mb-12">
+                    {/* 背景段落 */}
+                    <div className="relative">
+                      <h4 className="font-medium text-white mb-4">【背景】</h4>
+                      <p className="text-sm text-gray-300 bg-slate-800/30 p-6 rounded">
+                        {analysisResult.background}
+                      </p>
+                      <Button
+                        onClick={() => showFineTuneBubble('background')}
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-0 right-0 text-gray-400 hover:text-blue-400"
+                      >
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        微调
+                      </Button>
+                      
+                      {/* 微调气泡 */}
+                      {fineTuneBubble?.section === 'background' && fineTuneBubble.isVisible && (
+                        <div className="absolute top-12 right-0 z-10 bg-slate-800/90 border border-slate-700/50 rounded-lg p-4 shadow-lg w-96 backdrop-blur-sm">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-white">微调内容</span>
+                              <Button
+                                onClick={hideFineTuneBubble}
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-400 hover:text-white"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <Textarea
+                              value={fineTuneInstruction}
+                              onChange={(e) => setFineTuneInstruction(e.target.value)}
+                              placeholder="例如：这一段写得太专业了，请改得更通俗一点"
+                              className="bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 text-sm"
+                              rows={3}
+                            />
+                            <div className="flex space-x-3">
+                              <Button
+                                onClick={() => handleFineTune('background')}
+                                disabled={isFineTuning || !fineTuneInstruction.trim()}
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700"
+                              >
+                                {isFineTuning ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    处理中...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3 h-3 mr-1" />
+                                    应用
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                onClick={hideFineTuneBubble}
+                                variant="outline"
+                                size="sm"
+                                className="text-gray-400 border-slate-600/50 hover:text-white"
+                              >
+                                取消
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 访谈大纲段落 */}
+                    <div className="relative">
+                      <h4 className="font-medium text-white mb-4">【访谈大纲】</h4>
+                      <p className="text-sm text-gray-300 bg-blue-900/20 p-6 rounded">
+                        {analysisResult.outline}
+                      </p>
+                      <Button
+                        onClick={() => showFineTuneBubble('outline')}
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-0 right-0 text-gray-400 hover:text-blue-400"
+                      >
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        微调
+                      </Button>
+                      
+                      {/* 微调气泡 */}
+                      {fineTuneBubble?.section === 'outline' && fineTuneBubble.isVisible && (
+                        <div className="absolute top-12 right-0 z-10 bg-slate-800/90 border border-slate-700/50 rounded-lg p-4 shadow-lg w-96 backdrop-blur-sm">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-white">微调内容</span>
+                              <Button
+                                onClick={hideFineTuneBubble}
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-400 hover:text-white"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <Textarea
+                              value={fineTuneInstruction}
+                              onChange={(e) => setFineTuneInstruction(e.target.value)}
+                              placeholder="例如：这一段写得太专业了，请改得更通俗一点"
+                              className="bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 text-sm"
+                              rows={3}
+                            />
+                            <div className="flex space-x-3">
+                              <Button
+                                onClick={() => handleFineTune('outline')}
+                                disabled={isFineTuning || !fineTuneInstruction.trim()}
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700"
+                              >
+                                {isFineTuning ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    处理中...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3 h-3 mr-1" />
+                                    应用
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                onClick={hideFineTuneBubble}
+                                variant="outline"
+                                size="sm"
+                                className="text-gray-400 border-slate-600/50 hover:text-white"
+                              >
+                                取消
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 核心观点段落 */}
+                    <div className="relative">
+                      <h4 className="font-medium text-white mb-4">【核心观点】</h4>
+                      <p className="text-sm text-gray-300 bg-green-900/20 p-6 rounded">
+                        {analysisResult.coreInsights}
+                      </p>
+                      <Button
+                        onClick={() => showFineTuneBubble('coreInsights')}
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-0 right-0 text-gray-400 hover:text-blue-400"
+                      >
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        微调
+                      </Button>
+                      
+                      {/* 微调气泡 */}
+                      {fineTuneBubble?.section === 'coreInsights' && fineTuneBubble.isVisible && (
+                        <div className="absolute top-12 right-0 z-10 bg-slate-800/90 border border-slate-700/50 rounded-lg p-4 shadow-lg w-96 backdrop-blur-sm">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-white">微调内容</span>
+                              <Button
+                                onClick={hideFineTuneBubble}
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-400 hover:text-white"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <Textarea
+                              value={fineTuneInstruction}
+                              onChange={(e) => setFineTuneInstruction(e.target.value)}
+                              placeholder="例如：这一段写得太专业了，请改得更通俗一点"
+                              className="bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 text-sm"
+                              rows={3}
+                            />
+                            <div className="flex space-x-3">
+                              <Button
+                                onClick={() => handleFineTune('coreInsights')}
+                                disabled={isFineTuning || !fineTuneInstruction.trim()}
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700"
+                              >
+                                {isFineTuning ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    处理中...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3 h-3 mr-1" />
+                                    应用
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                onClick={hideFineTuneBubble}
+                                variant="outline"
+                                size="sm"
+                                className="text-gray-400 border-slate-600/50 hover:text-white"
+                              >
+                                取消
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 待办事项段落 */}
+                    <div className="relative">
+                      <h4 className="font-medium text-white mb-4">【待办事项】</h4>
+                      <p className="text-sm text-gray-300 bg-yellow-900/20 p-6 rounded">
+                        {analysisResult.actionItems}
+                      </p>
+                      <Button
+                        onClick={() => showFineTuneBubble('actionItems')}
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-0 right-0 text-gray-400 hover:text-blue-400"
+                      >
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        微调
+                      </Button>
+                      
+                      {/* 微调气泡 */}
+                      {fineTuneBubble?.section === 'actionItems' && fineTuneBubble.isVisible && (
+                        <div className="absolute top-12 right-0 z-10 bg-slate-800/90 border border-slate-700/50 rounded-lg p-4 shadow-lg w-96 backdrop-blur-sm">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-white">微调内容</span>
+                              <Button
+                                onClick={hideFineTuneBubble}
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-400 hover:text-white"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <Textarea
+                              value={fineTuneInstruction}
+                              onChange={(e) => setFineTuneInstruction(e.target.value)}
+                              placeholder="例如：这一段写得太专业了，请改得更通俗一点"
+                              className="bg-slate-700/50 border-slate-600/50 text-white placeholder-gray-400 text-sm"
+                              rows={3}
+                            />
+                            <div className="flex space-x-3">
+                              <Button
+                                onClick={() => handleFineTune('actionItems')}
+                                disabled={isFineTuning || !fineTuneInstruction.trim()}
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700"
+                              >
+                                {isFineTuning ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    处理中...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3 h-3 mr-1" />
+                                    应用
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                onClick={hideFineTuneBubble}
+                                variant="outline"
+                                size="sm"
+                                className="text-gray-400 border-slate-600/50 hover:text-white"
+                              >
+                                取消
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex space-x-3 mt-8">
+                      <Button onClick={exportFullReport} variant="outline" className="text-gray-400 border-slate-700/50 hover:text-white">
+                        <Download className="w-4 h-4 mr-2" />
+                        导出报告
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 笔录上传区域 */}
+                <div className="border-2 border-dashed border-slate-700/50 rounded-lg p-8 mb-8">
+                  <input
+                    type="file"
+                    accept=".txt,.docx"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <label 
+                    htmlFor="file-upload" 
+                    className="cursor-pointer inline-flex items-center space-x-3 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    选择文件 (.txt/.docx)
+                  </label>
+                  <p className="text-sm text-gray-400 mt-3">或直接粘贴下方</p>
+                </div>
+
+                <div className="mb-8">
+                  <Label className="text-gray-300 text-sm">访谈笔录内容</Label>
+                  <Textarea
+                    value={transcriptText}
+                    onChange={(e) => setTranscriptText(e.target.value)}
+                    className="min-h-40 mt-3 bg-slate-800/50 border-slate-700/50 text-white placeholder-gray-500"
+                    placeholder="请粘贴访谈笔录内容..."
+                  />
+                </div>
+
+                {/* 笔录预览区域 - 支持引用联动 */}
+                {transcriptText && !analysisResult && (
+                  <div className="bg-slate-800/30 rounded-lg p-6 shadow-lg shadow-black/20 backdrop-blur-sm" ref={transcriptRef}>
+                    <h3 className="text-white font-medium mb-4">笔录预览</h3>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {transcriptChunks.map((chunk) => (
+                        <div
+                          key={chunk.id}
+                          data-chunk-id={chunk.id}
+                          className={`text-gray-300 text-sm p-3 rounded transition-all ${
+                            highlightedChunkId === chunk.id 
+                              ? 'bg-blue-900/30 ring-2 ring-blue-500 ring-opacity-50' 
+                              : 'bg-slate-700/30'
+                          }`}
+                        >
+                          {chunk.speaker && (
+                            <span className="text-blue-400 font-medium">{chunk.speaker}：</span>
+                          )}
+                          <span className="whitespace-pre-wrap">{chunk.content}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 右侧：Agent 对话框 - 抽屉式展开 */}
+      {!isRightSidebarCollapsed && (
+        <div className="fixed right-0 top-0 h-full w-96 bg-slate-900/95 border-l border-slate-800/50 flex flex-col backdrop-blur-md z-50 transform transition-transform duration-300 ease-in-out">
+          <div className="p-4 border-b border-slate-800/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className={`w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center mr-3 ${
+                  isAnalyzing ? 'animate-spin' : ''
+                }`}>
+                  <Brain className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-white font-medium text-sm">QualiProbe Agent</h3>
+                  <p className="text-gray-400 text-xs">洞察引擎</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsRightSidebarCollapsed(true)}
+                className="text-gray-400 hover:text-white p-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Agent 输出区域 - 洞察引擎开场白 */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="space-y-4">
+              <div className="bg-blue-900/20 border border-blue-800/30 rounded-lg p-4">
+                <h4 className="text-blue-300 font-medium mb-3 text-sm">洞察引擎</h4>
+                <p className="text-blue-200 text-sm">
+                  你好，我是 QualiProbe 洞察引擎。我已经准备好辅助你的定性研究。你可以让我根据你的研究目的优化大纲，或者直接上传笔录开始深度拆解。
+                </p>
+              </div>
+              
+              <div className="bg-purple-900/20 border border-purple-800/30 rounded-lg p-4">
+                <h4 className="text-purple-300 font-medium mb-3 text-sm">智能关联</h4>
+                <p className="text-purple-200 text-sm">
+                  我已自动读取你的研究主题和目的。你可以直接问："基于目前这个主题，你觉得我的目标受众选对了吗？"
+                </p>
+              </div>
+              
+              <div className="bg-green-900/20 border border-green-800/30 rounded-lg p-4">
+                <h4 className="text-green-300 font-medium mb-3 text-sm">精准溯源</h4>
+                <p className="text-green-200 text-sm">
+                  当你询问"原话"、"证据"等时，我会从笔录中提取100%还原的原文内容。
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* 实时对话框 */}
+          <div className="border-t border-slate-800/50 p-4">
+            <div className="space-y-3 max-h-64 overflow-y-auto mb-3">
+              {chatMessages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-xs px-3 py-2 rounded-lg text-sm ${
+                      message.type === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700/50 text-gray-200'
+                    }`}
+                  >
+                    {message.content}
+                    {/* 引用联动 - 可点击的原话 */}
+                    {message.evidence && (
+                      <button
+                        onClick={() => scrollToEvidence(message.evidence!.chunkId)}
+                        className="mt-2 text-blue-400 hover:text-blue-300 underline text-xs flex items-center"
+                      >
+                        <Search className="w-3 h-3 mr-1" />
+                        查看原文位置
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Agent 思考状态 - 状态透明化 */}
+            {isAgentThinking && (
+              <div className="flex items-center justify-center py-2">
+                <div className="flex items-center space-x-2 text-blue-400 text-sm">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>{thinkingStep || '🔍 正在扫描笔录切片以获取证据...'}</span>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex space-x-2">
+              <Input
+                value={currentMessage}
+                onChange={(e) => setCurrentMessage(e.target.value)}
+                placeholder="追问更多细节..."
+                className="bg-slate-800/50 border-slate-700/50 text-white placeholder-gray-500 text-sm"
+                onKeyPress={(e) => e.key === 'Enter' && handleChat()}
+              />
+              <Button
+                onClick={handleChat}
+                disabled={!currentMessage.trim() || isChatting}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <MessageSquare className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 右侧收起状态 - 智能呼吸灯 */}
+      {isRightSidebarCollapsed && (
+        <div className="fixed right-0 top-1/2 transform -translate-y-1/2 bg-slate-800/50 border border-slate-700/50 rounded-l-lg p-2 text-gray-400 hover:text-white z-40 group">
+          <button
+            onClick={() => setIsRightSidebarCollapsed(false)}
+            className={`text-gray-400 hover:text-white relative ${
+              isAnalyzing ? 'animate-spin' : (analysisResult || chatMessages.length > 0 ? 'animate-pulse' : '')
+            }`}
+          >
+            <MessageSquare className="w-5 h-5" />
+            {/* 呼吸光圈 - 每3秒呼吸一次 */}
+            <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-pulse" style={{ animationDuration: '3s' }} />
+            {/* 运转效果 - 分析进行时显示 */}
+            {isAnalyzing && (
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-ping" />
+            )}
+            {/* 呼吸灯效果 - 当有新内容时显示 */}
+            {!isAnalyzing && (analysisResult || chatMessages.length > 0) && (
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-ping" />
+            )}
+          </button>
+          
+          {/* 悬浮提示 */}
+          <div className="absolute right-full top-1/2 transform -translate-y-1/2 mr-2 bg-slate-800/90 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap backdrop-blur-sm">
+            点击启动洞察解析
+            <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-r-4 border-r-slate-700/50"></div>
+          </div>
+        </div>
+      )}
+
+      {/* 全局错误Toast */}
+      {showErrorToast && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
+          <div className="bg-red-900/95 border border-red-700/50 rounded-lg p-4 shadow-2xl backdrop-blur-md max-w-sm">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
+                  <X className="w-4 h-4 text-white" />
+                </div>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-white font-medium text-sm">操作失败</h3>
+                <p className="text-red-200 text-sm mt-1">{errorMessage}</p>
+              </div>
+              <div className="ml-auto pl-3">
+                <button
+                  onClick={() => setShowErrorToast(false)}
+                  className="text-red-300 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

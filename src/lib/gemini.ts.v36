@@ -1,0 +1,338 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// 大纲数据接口
+export interface OutlineData {
+  project_title: string;
+  sections: Array<{
+    id?: number;
+    title: string;
+    duration: string;
+    questions: string[];
+    notes: string;
+  }>;
+}
+
+// 生成参数接口
+export interface GenerateParams {
+  researchTopic: string;
+  targetAudience: string;
+  researchPurpose: string;
+  interviewType: 'IDI' | 'FGD';
+  interviewDuration: string;
+  selectedTemplate: 'basic' | 'comprehensive';
+}
+
+class GeminiService {
+  private genAI: GoogleGenerativeAI | null = null;
+
+  constructor() {
+    this.initializeClient();
+  }
+
+  private initializeClient() {
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    console.log('=== Gemini Service Environment Variable Check ===');
+    console.log('NEXT_PUBLIC_GEMINI_API_KEY exists:', !!apiKey);
+    console.log('NEXT_PUBLIC_GEMINI_API_KEY length:', apiKey?.length || 0);
+    
+    if (!apiKey) {
+      console.error('NEXT_PUBLIC_GEMINI_API_KEY is not configured in gemini.ts');
+      return;
+    }
+    this.genAI = new GoogleGenerativeAI(apiKey);
+    console.log('✅ Gemini service client initialized successfully');
+  }
+
+  async generateOutline(params: GenerateParams): Promise<OutlineData> {
+    if (!this.genAI) {
+      console.log('Gemini client not initialized, using mock data');
+      return this.generateMockOutline(params);
+    }
+
+    try {
+      const model = this.genAI.getGenerativeModel({ 
+        model: 'gemini-2.0-flash',
+        generationConfig: {
+          temperature: 0.7,
+          topP: 0.8,
+          topK: 40,
+          maxOutputTokens: 8192,
+        }
+      });
+
+      const prompt = this.buildEnhancedPrompt(params);
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      // Parse the JSON response
+      let outlineData: OutlineData;
+      try {
+        outlineData = JSON.parse(text);
+        console.log('✅ Successfully generated outline with Gemini API');
+      } catch (parseError) {
+        console.error('Failed to parse AI response as JSON, using mock data:', parseError);
+        outlineData = this.generateMockOutline(params);
+      }
+
+      return outlineData;
+
+    } catch (error: any) {
+      console.error('Gemini API error:', error);
+      
+      // Check if it's a quota exceeded error
+      if (error.message?.includes('quota') || error.message?.includes('429')) {
+        console.log('🔄 API quota exceeded, gracefully falling back to mock data');
+      } else {
+        console.log('🔄 API error, falling back to mock data');
+      }
+      
+      return this.generateMockOutline(params);
+    }
+  }
+
+  private buildEnhancedPrompt(params: GenerateParams): string {
+    const { researchTopic, targetAudience, researchPurpose, interviewType, interviewDuration } = params;
+
+    // 实体清洗 - 提取核心业务话题
+    const coreTopic = this.extractCoreTopic(researchTopic);
+
+    const systemPrompt = `
+# Role
+你是一名来自顶级全球市场研究咨询公司的定性研究总监（Qualitative Director）。你精通消费者深访 (IDI)、焦点小组 (FGD)、民族志 (Ethnography) 及各类心理投影技术 (Projective Techniques)。
+
+# Mission
+将客户的【商业研究课题】转化为面向消费者的【体验式谈话大纲】。
+
+# Business Logic: The Funnel Approach (漏斗原则)
+1. **Warm-up (生活全景)**: 从受访者的生活方式 (Lifestyle) 切入。严禁询问任何关于研究课题（如"画像"、"认知"）的专业词汇。
+2. **Category (品类习惯)**: 了解受访者对该品类（如：巧克力）的普遍习惯、使用动机 (Occasions) 和决策链路。
+3. **Brand (品牌认知)**: 引入特定品牌（如：德芙）。通过"品牌拟人化"或"词语联想"等投影技术，探测品牌在受访者心智中的真实位置。
+4. **Deep Dive (深挖)**: 挖掘未满足的需求 (Unmet Needs) 或品牌资产 (Brand Equity)。
+
+# Projective Techniques (投影技术库 - 核心)
+当课题涉及"用户画像"或"品牌形象"时，必须使用以下技术：
+- **Personification (拟人化)**: "如果这个品牌变成一个人，TA的性格、职业、穿搭是什么样的？"
+- **Bubble Drawing (对白填空)**: "当别人送你德芙时，你心里第一句想说的话是什么？"
+- **Comparison (比喻法)**: "如果德芙是一款车/一个明星，会是谁？"
+
+# Constraints (硬性禁令)
+- **绝对禁止词汇**: 用户画像、定性研究、访谈目标、属性维度、心智模型。
+- **热身要求**: 关注受访者的"人"，了解其职业、家庭、休闲习惯。
+- **FGD 特色**: 必须包含 2-3 个组员互动环节（如：观点大辩论、卡片分类游戏）。
+
+# Output Format
+- [模块名称 & 时长]
+- [核心问题 (引导语)]
+- [Probing (深度追问技巧)]: 提示主持人如何挖掘背后的情绪。
+- [Moderator Note (主持人笔记)]: 指导观察受访者的犹豫、抵触或兴奋点。`;
+
+    const userPrompt = `
+请生成以下访谈大纲：
+- 研究课题：${researchTopic}
+- 核心话题：${coreTopic}
+- 访谈类型：${interviewType}（注意：如果是FGD，请增加互动讨论环节）
+- 目标人群：${targetAudience}
+- 研究目标：${researchPurpose}
+- 总时长：${interviewDuration} 分钟
+
+请严格按照以下JSON格式返回：
+
+{
+  "project_title": "${coreTopic} - 深度研究报告 (${interviewType})",
+  "sections": [
+    {
+      "id": 1,
+      "title": "环节标题",
+      "duration": "XX分钟",
+      "questions": [
+        "具体问题1",
+        "具体问题2",
+        "具体问题3"
+      ],
+      "notes": "该环节的研究目的和注意事项"
+    }
+  ]
+}`;
+
+    return `${systemPrompt}
+
+${userPrompt}`;
+  }
+
+  private extractCoreTopic(researchTopic: string): string {
+    // 提取核心业务话题，移除研究方法相关后缀
+    const suffixesToRemove = [
+      '用户画像',
+      '用户细分', 
+      '访谈大纲',
+      '深度访谈',
+      '消费者研究',
+      '市场调研',
+      '体验研究',
+      '用户研究',
+      '产品研究',
+      '品牌研究',
+      '购买行为研究',
+      '消费动机研究'
+    ];
+    
+    let cleanedTopic = researchTopic.trim();
+    
+    // 移除所有后缀
+    for (const suffix of suffixesToRemove) {
+      if (cleanedTopic.endsWith(suffix)) {
+        cleanedTopic = cleanedTopic.slice(0, -suffix.length).trim();
+        break; // 只移除一个后缀
+      }
+    }
+    
+    return cleanedTopic || researchTopic;
+  }
+
+  private generateMockOutline(params: GenerateParams): OutlineData {
+    const { researchTopic, targetAudience, researchPurpose, interviewType, interviewDuration } = params;
+    
+    // 实体清洗 - 提取核心业务话题
+    const coreTopic = this.extractCoreTopic(researchTopic);
+    
+    // 改进的时长分配逻辑
+    let durations: number[];
+    const totalDuration = parseInt(interviewDuration);
+    
+    if (totalDuration <= 10) {
+      // 短访谈（10分钟以内）：简化分配
+      durations = [
+        1, // 破冰/热身
+        1, // 行为/习惯  
+        totalDuration - 2, // 品牌认知/感受 + 深层挖掘（合并）
+        0, // 互动设计（仅FGD）
+        0  // 总结与收尾
+      ];
+    } else if (totalDuration <= 30) {
+      // 中等访谈（10-30分钟）：标准分配
+      const warmupDuration = Math.max(2, Math.floor(totalDuration * 0.15));
+      const behaviorDuration = Math.max(3, Math.floor(totalDuration * 0.25));
+      const brandDuration = Math.max(4, Math.floor(totalDuration * 0.30));
+      const deepDuration = Math.max(3, Math.floor(totalDuration * 0.20));
+      const interactionDuration = interviewType === 'FGD' ? Math.max(2, Math.floor(totalDuration * 0.10)) : 0;
+      const summaryDuration = totalDuration - warmupDuration - behaviorDuration - brandDuration - deepDuration - interactionDuration;
+      
+      durations = [warmupDuration, behaviorDuration, brandDuration, deepDuration, interactionDuration, Math.max(1, summaryDuration)];
+    } else {
+      // 长访谈（30分钟以上）：详细分配
+      const warmupDuration = Math.max(3, Math.floor(totalDuration * 0.10));
+      const behaviorDuration = Math.max(5, Math.floor(totalDuration * 0.20));
+      const brandDuration = Math.max(8, Math.floor(totalDuration * 0.25));
+      const deepDuration = Math.max(6, Math.floor(totalDuration * 0.20));
+      const interactionDuration = interviewType === 'FGD' ? Math.max(4, Math.floor(totalDuration * 0.15)) : 0;
+      const summaryDuration = totalDuration - warmupDuration - behaviorDuration - brandDuration - deepDuration - interactionDuration;
+      
+      durations = [warmupDuration, behaviorDuration, brandDuration, deepDuration, interactionDuration, Math.max(3, summaryDuration)];
+    }
+
+    // 确保总时长匹配
+    const totalAllocated = durations.reduce((sum, duration) => sum + duration, 0);
+    if (totalAllocated !== totalDuration) {
+      durations[durations.length - 1] += totalDuration - totalAllocated;
+    }
+
+    // 根据访谈类型生成不同的问题 - 漏斗原则
+    const generateQuestions = (sectionType: string, duration: number) => {
+      const baseQuestions = {
+        warmup: [
+          "能跟我分享一下您典型的周末是怎么度过的吗？有哪些让您感到\"治愈\"或\"小确幸\"的时刻？",
+          "在这些时刻里，甜食或零食通常扮演什么角色？",
+          "请简单介绍一下您的职业和日常生活节奏。"
+        ],
+        category: [
+          `提到巧克力，您首先会想到什么？是奖励自己、分享给朋友，还是其他场景？`,
+          `您通常在什么心情或场合下会选择吃巧克力？`,
+          `能描述一下您最近一次购买巧克力的经历吗？当时是什么情况？`
+        ],
+        brand: [
+          `现在我们来做个有趣的想象。如果"${coreTopic}"变成了一个真实的人，TA出现在一个派对上。请描述一下：TA几岁？穿什么样的衣服？TA走进房间时，大家的反应是什么？`,
+          `当别人送您${coreTopic}时，您心里第一句想说的话是什么？`,
+          `如果${coreTopic}是一款车/一个明星，您觉得它会是谁？为什么？`
+        ],
+        deep: [
+          `请回忆一个让您印象深刻的${coreTopic}相关经历，当时发生了什么让您至今难忘？`,
+          `如果让您给${coreTopic}提一个建议，您会说什么？为什么？`,
+          `有没有什么关于${coreTopic}的故事，您一直想分享但没人问过？`
+        ],
+        interaction: interviewType === 'FGD' ? [
+          `现在请大家根据这组卡片进行分类并讨论理由：这些卡片上有不同的使用场景，请分组讨论${coreTopic}最适合的场景。`,
+          `观点大辩论：请大家分成两组，一组支持${coreTopic}是"奖励自己"，另一组支持"分享给他人"，然后进行辩论。`,
+          `有没有人有不同意见？关于${coreTopic}，大家觉得什么样的人会特别喜欢？`
+        ] : [
+          `如果让您用三个词来形容${coreTopic}，会是哪三个词？`,
+          `在您看来，${coreTopic}和其他同类产品最大的不同是什么？`
+        ],
+        summary: [
+          `今天聊下来，有没有什么让您重新思考的地方？`,
+          `关于${researchPurpose}，您还有什么补充建议吗？`,
+          `如果让您向朋友推荐${coreTopic}，您会怎么说？`
+        ]
+      };
+
+      return baseQuestions[sectionType as keyof typeof baseQuestions] || [];
+    };
+
+    return {
+      project_title: `${coreTopic} - 深度研究报告 (${interviewType})`,
+      sections: [
+        {
+          id: 1,
+          title: "破冰/热身",
+          duration: `${durations[0]}分钟`,
+          questions: generateQuestions('warmup', durations[0]),
+          notes: "建立安全感，了解背景。观察受访者的放松程度和开放性。"
+        },
+        {
+          id: 2,
+          title: "行为/习惯",
+          duration: `${durations[1]}分钟`,
+          questions: generateQuestions('behavior', durations[1]),
+          notes: "具体的购买/使用事实（还原现场）。注意追问具体的时间、地点、人物、动作。"
+        },
+        {
+          id: 3,
+          title: "品牌认知/感受",
+          duration: `${durations[2]}分钟`,
+          questions: generateQuestions('brand', durations[2]),
+          notes: "投影技巧应用。观察受访者的表情变化和情感投入程度。"
+        },
+        {
+          id: 4,
+          title: "深层挖掘/痛点",
+          duration: `${durations[3]}分钟`,
+          questions: generateQuestions('deep', durations[3]),
+          notes: "未满足的需求、情感补偿。重点关注语调变化和停顿，这些可能隐藏深层情感。"
+        },
+        {
+          id: 5,
+          title: interviewType === 'FGD' ? "互动设计/讨论" : "深度反思",
+          duration: `${durations[4]}分钟`,
+          questions: generateQuestions('interaction', durations[4]),
+          notes: interviewType === 'FGD' 
+            ? "引导组员之间产生对话而非仅与主持人对话。观察群体动态和意见领袖。"
+            : "引导深度反思，探讨长期影响和未来期望。"
+        },
+        {
+          id: 6,
+          title: "总结与收尾",
+          duration: `${durations[5]}分钟`,
+          questions: generateQuestions('summary', durations[5]),
+          notes: "确认关键发现，感谢参与。确保受访者感到被重视和理解。"
+        }
+      ].filter(section => parseInt(section.duration) > 0) // 过滤掉时长为0的环节
+    };
+  }
+}
+
+// Export singleton instance
+export const geminiService = new GeminiService();
+
+// Export the function for backward compatibility
+export const generateOutline = (params: GenerateParams) => geminiService.generateOutline(params);
