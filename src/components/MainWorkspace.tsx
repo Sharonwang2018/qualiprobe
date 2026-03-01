@@ -727,19 +727,32 @@ export default function MainWorkspace() {
 
             {/* 大纲展示区 */}
             {outlineData && !isEditing && (
-              <div className="bg-white border border-slate-200 rounded-lg p-8 shadow-lg">
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-xl font-bold text-slate-800">生成的大纲</h2>
-                  <div className="flex space-x-3">
-                    <Button onClick={handleEdit} variant="outline" className="text-slate-600 border-slate-300 hover:text-slate-800">
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      编辑
-                    </Button>
-                    <Button onClick={handleExport} variant="outline" className="text-slate-600 border-slate-300 hover:text-slate-800">
-                      <Download className="w-4 h-4 mr-2" />
-                      导出Word
-                    </Button>
-                  </div>
+              <div className="bg-white border border-slate-200 rounded-lg p-8 shadow-lg relative">
+                {/* 右上角显眼的Download按钮 */}
+                <div className="absolute top-6 right-6">
+                  <Button 
+                    onClick={handleExport} 
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="font-medium">Download</span>
+                  </Button>
+                </div>
+                
+                {/* 左上角编辑按钮 */}
+                <div className="absolute top-6 left-6">
+                  <Button 
+                    onClick={handleEdit} 
+                    variant="outline"
+                    className="bg-white/80 backdrop-blur border-slate-300 text-slate-600 hover:text-slate-800 hover:bg-white px-4 py-2 rounded-lg shadow-md transition-all duration-200 flex items-center space-x-2"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    <span className="font-medium">编辑</span>
+                  </Button>
+                </div>
+                
+                <div className="mb-8 mt-16">
+                  <h2 className="text-xl font-bold text-slate-800 text-center">生成的大纲</h2>
                 </div>
                 
                 <div className="text-center mb-8">
@@ -786,9 +799,20 @@ export default function MainWorkspace() {
 
             {/* 编辑界面 */}
             {outlineData && isEditing && editingOutline && (
-              <div className="bg-white border border-slate-200 rounded-lg p-8 shadow-lg">
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="text-xl font-bold text-slate-800">编辑大纲</h2>
+              <div className="bg-white border border-slate-200 rounded-lg p-8 shadow-lg relative">
+                {/* 右上角导出按钮 */}
+                <div className="absolute top-6 right-6">
+                  <Button 
+                    onClick={handleExport} 
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="font-medium">Download</span>
+                  </Button>
+                </div>
+                
+                <div className="mb-8 mt-16">
+                  <h2 className="text-xl font-bold text-slate-800 text-center">编辑大纲</h2>
                 </div>
                 
                 <div className="bg-slate-50 rounded-lg p-6 mb-8 shadow-sm">
