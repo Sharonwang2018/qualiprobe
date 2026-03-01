@@ -50,11 +50,11 @@ export default function QualiProbe() {
   return (
     <LanguageProvider>
       <div className="h-screen w-full overflow-hidden bg-white flex flex-col">
-        {/* Header 顶部导航栏 */}
+        {/* Header 顶部导航栏 - 固定定位 */}
         <Header />
         
-        {/* 三栏容器 */}
-        <div className="flex-1 flex overflow-hidden">
+        {/* 三栏容器 - 为Header留出空间 */}
+        <div className="flex-1 flex overflow-hidden pt-14">
           {/* 左侧面板 - 项目记忆 */}
           <div 
             className="bg-slate-50 border-r border-slate-200 flex-shrink-0"
@@ -65,7 +65,7 @@ export default function QualiProbe() {
           
           {/* 左侧拖拽手柄 */}
           <div 
-            className="w-1 bg-slate-200 hover:bg-blue-400 cursor-col-resize transition-colors flex-shrink-0"
+            className="w-0.5 bg-slate-100 hover:bg-blue-500 cursor-col-resize transition-all duration-200 hover:scale-x-150 flex-shrink-0"
             onMouseDown={() => handleMouseDown('left')}
           />
           
@@ -76,7 +76,7 @@ export default function QualiProbe() {
           
           {/* 右侧拖拽手柄 */}
           <div 
-            className="w-1 bg-slate-200 hover:bg-blue-400 cursor-col-resize transition-colors flex-shrink-0"
+            className="w-0.5 bg-slate-100 hover:bg-blue-500 cursor-col-resize transition-all duration-200 hover:scale-x-150 flex-shrink-0"
             onMouseDown={() => handleMouseDown('right')}
           />
           

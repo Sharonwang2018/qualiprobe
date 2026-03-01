@@ -339,79 +339,79 @@ export default function AgentChat({
               </div>
             </div>
           )}
-          
-          {/* 对话区域 - 置顶撑满 */}
-          <div 
-            ref={chatContainerRef}
-            className="space-y-3 overflow-y-auto"
-            style={{ height: chatMessages.length > 0 ? '100%' : 'calc(100% - 120px)' }}
-          >
-            {chatMessages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} mb-3`}
-              >
-                {message.type === 'user' ? (
-                  <div className="text-right max-w-[80%]">
-                    <p className="font-medium text-slate-800 text-sm inline-block bg-blue-50 px-3 py-2 rounded-l-lg rounded-tr-lg">
+        
+        {/* 对话区域 - 置顶撑满 */}
+        <div 
+          ref={chatContainerRef}
+          className="space-y-3 overflow-y-auto"
+          style={{ height: chatMessages.length > 0 ? '100%' : 'calc(100% - 120px)' }}
+        >
+          {chatMessages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} mb-3`}
+            >
+              {message.type === 'user' ? (
+                <div className="text-right max-w-[80%]">
+                  <p className="font-medium text-white text-sm inline-block bg-blue-600 px-4 py-2 rounded-2xl rounded-tr-sm">
+                    {message.content}
+                  </p>
+                </div>
+              ) : (
+                <div className="max-w-[80%]">
+                  <div className="flex items-start">
+                    <Brain className="w-4 h-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                    <p className="text-slate-700 text-sm leading-relaxed bg-slate-100 px-4 py-2 rounded-2xl rounded-tl-sm">
                       {message.content}
+                      {/* 引用联动 - 可点击的原话 */}
+                      {message.evidence && onScrollToEvidence && (
+                        <button
+                          onClick={() => onScrollToEvidence(message.evidence!.chunkId)}
+                          className="mt-2 text-blue-600 hover:text-blue-500 underline text-xs flex items-center"
+                        >
+                          <Search className="w-3 h-3 mr-1" />
+                          查看原文
+                        </button>
+                      )}
                     </p>
                   </div>
-                ) : (
-                  <div className="max-w-[80%]">
-                    <div className="flex items-start">
-                      <Brain className="w-4 h-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-600 text-sm leading-relaxed bg-slate-50 px-3 py-2 rounded-lg">
-                        {message.content}
-                        {/* 引用联动 - 可点击的原话 */}
-                        {message.evidence && onScrollToEvidence && (
-                          <button
-                            onClick={() => onScrollToEvidence(message.evidence!.chunkId)}
-                            className="mt-2 text-blue-600 hover:text-blue-500 underline text-xs flex items-center"
-                          >
-                            <Search className="w-3 h-3 mr-1" />
-                            查看原文
-                          </button>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          
-          {/* Agent 思考状态 */}
-          {isAgentThinking && (
-            <div className="flex items-center justify-center py-3">
-              <div className="flex items-center space-x-2 text-blue-600 text-sm">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span>{thinkingStep || '正在分析...'}</span>
-              </div>
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </div>
-      </div>
-      
-      {/* 底部输入框 */}
-      <div className="p-4 border-t border-slate-200 bg-white">
-        <div className="flex space-x-2">
-          <Input
-            value={currentMessage}
-            onChange={(e) => setCurrentMessage(e.target.value)}
-            placeholder="询问关于研究设计、大纲优化或笔录分析的问题..."
-            className="bg-white border border-slate-300 text-slate-800 placeholder-slate-400 text-sm flex-1"
-            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleChat()}
-          />
-          <Button
-            onClick={handleChat}
-            disabled={!currentMessage.trim() || isChatting}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-          >
-            <Zap className="w-4 h-4" />
-          </Button>
-        </div>
+        
+        {/* Agent 思考状态 */}
+        {isAgentThinking && (
+          <div className="flex items-center justify-center py-3">
+            <div className="flex items-center space-x-2 text-blue-600 text-sm">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>{thinkingStep || '正在分析...'}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
-  );
+    
+    {/* 底部输入框 - Dynamic Island 风格 */}
+    <div className="absolute bottom-4 left-4 right-4">
+      <div className="bg-white/90 backdrop-blur-lg border border-slate-200 rounded-full shadow-2xl px-4 py-3 flex items-center space-x-3">
+        <Input
+          value={currentMessage}
+          onChange={(e) => setCurrentMessage(e.target.value)}
+          placeholder="询问关于研究设计、大纲优化或笔录分析的问题..."
+          className="bg-transparent border-0 text-slate-800 placeholder-slate-400 text-sm flex-1 focus:ring-0 focus:border-0 px-0"
+          onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleChat()}
+        />
+        <Button
+          onClick={handleChat}
+          disabled={!currentMessage.trim() || isChatting}
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 h-8 w-8 flex items-center justify-center"
+        >
+          <Zap className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  </div>
+);
 }

@@ -467,7 +467,7 @@ export default function MainWorkspace() {
 
   return (
     <div className="h-full bg-white p-6 overflow-y-auto">
-      <div className="w-full px-10">
+      <div className="w-full px-10 py-8">
         {/* 工作台切换标签 */}
         <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg mb-8">
           <button
@@ -496,167 +496,85 @@ export default function MainWorkspace() {
 
         {activeWorkbench === 'outline' && (
           <>
-            {/* 参数设置区 - 光影微调 */}
-            <div className="bg-white border border-slate-200 rounded-lg p-8 mb-8 shadow-lg">
-              <div className="grid grid-cols-2 gap-8">
+            {/* 参数设置区 - 白色卡片设计 */}
+            <div className="max-w-3xl mx-auto bg-white/80 backdrop-blur border border-slate-200 shadow-xl rounded-3xl p-8 mb-8">
+              <div className="space-y-8">
+                {/* 研究主题 - 大字号无边框风格 */}
                 <div>
-                  <Label className="text-slate-600 text-sm">研究主题</Label>
+                  <Label className="text-slate-600 text-sm mb-3 block">研究主题</Label>
                   <Input
                     value={researchTopic}
                     onChange={(e) => setResearchTopic(e.target.value)}
-                    className="mt-3 bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="例如：智能家居对老年人生活质量的影响"
+                    className="text-2xl font-semibold border-0 bg-transparent px-0 py-0 placeholder-slate-300 focus:ring-0 focus:border-0 text-slate-800"
+                    placeholder="输入您的研究主题..."
                   />
+                  <p className="text-slate-400 text-sm mt-2">例如：智能家居对老年人生活质量的影响</p>
                 </div>
                 
+                {/* 目标受众 */}
                 <div>
-                  <Label className="text-slate-600 text-sm">目标受众</Label>
+                  <Label className="text-slate-600 text-sm mb-3 block">目标受众</Label>
                   <Input
                     value={targetAudience}
                     onChange={(e) => setTargetAudience(e.target.value)}
-                    className="mt-3 bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="text-lg border border-slate-200 bg-white/50 backdrop-blur rounded-lg px-4 py-3 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                     placeholder="例如：65岁以上、独立生活的城市老人"
                   />
                 </div>
                 
+                {/* 研究目的 */}
                 <div>
-                  <Label className="text-slate-600 text-sm">研究目的</Label>
+                  <Label className="text-slate-600 text-sm mb-3 block">研究目的</Label>
                   <Textarea
                     value={researchPurpose}
                     onChange={(e) => setResearchPurpose(e.target.value)}
-                    className="min-h-40 mt-3 bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="请详细描述您希望探讨的核心痛点或行为习惯..."
+                    className="text-lg border border-slate-200 bg-white/50 backdrop-blur rounded-lg px-4 py-3 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 resize-none"
+                    placeholder="描述您希望通过访谈了解的内容..."
                     rows={3}
                   />
                 </div>
-                
-                <div>
-                  <Label className="text-slate-600 text-sm">访谈类型</Label>
-                  <Select value={interviewType} onValueChange={(value: 'IDI' | 'FGD') => setInterviewType(value)}>
-                    <SelectTrigger className="mt-3 bg-white border border-slate-300 text-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border border-slate-200">
-                      <SelectItem value="IDI" className="text-slate-800">深度访谈 (IDI)</SelectItem>
-                      <SelectItem value="FGD" className="text-slate-800">焦点小组 (FGD)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                  
-                <div>
-                  <Label className="text-slate-600 text-sm">访谈时长</Label>
-                  <Select value={interviewDuration} onValueChange={setInterviewDuration}>
-                    <SelectTrigger className="mt-3 bg-white border border-slate-300 text-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border border-slate-200">
-                      <SelectItem value="30" className="text-slate-800">30分钟</SelectItem>
-                      <SelectItem value="45" className="text-slate-800">45分钟</SelectItem>
-                      <SelectItem value="60" className="text-slate-800">60分钟</SelectItem>
-                      <SelectItem value="90" className="text-slate-800">90分钟</SelectItem>
-                      <SelectItem value="120" className="text-slate-800">120分钟</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                  
-                <div>
-                  <Label className="text-slate-600 text-sm flex items-center">
-                    <span className="mr-2">🌐</span>
-                    输出语言
-                  </Label>
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                      className="mt-3 w-full bg-white border border-slate-300 text-slate-800 rounded-lg px-4 py-3 text-left flex items-center justify-between hover:bg-slate-50 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <span className="flex items-center">
-                        {outputLanguage === '中文' && '🇨🇳 中文'}
-                        {outputLanguage === '英文' && '🇺🇸 英文'}
-                        {outputLanguage === '日文' && '🇯🇵 日文'}
-                        {outputLanguage === '双语对照' && '🌐 双语对照'}
-                      </span>
-                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showLanguageDropdown ? 'rotate-180' : ''}`} />
-                    </button>
-                    
-                    {showLanguageDropdown && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-2xl z-50">
-                        <div className="py-2">
-                          {[
-                            { value: '中文', label: '🇨🇳 中文' },
-                            { value: '英文', label: '🇺🇸 英文' },
-                            { value: '日文', label: '🇯🇵 日文' },
-                            { value: '双语对照', label: '🌐 双语对照' }
-                          ].map((option) => (
-                            <button
-                              key={option.value}
-                              onClick={() => {
-                                setOutputLanguage(option.value as '中文' | '英文' | '日文' | '双语对照');
-                                setShowLanguageDropdown(false);
-                              }}
-                              className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors duration-150 flex items-center ${
-                                outputLanguage === option.value ? 'bg-blue-50 text-blue-600' : 'text-slate-800'
-                              }`}
-                            >
-                              {option.label}
-                              {outputLanguage === option.value && (
-                                <Check className="w-4 h-4 ml-auto" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+              </div>
+
+              {/* 高级选项 */}
+              <div className="mt-8 pt-8 border-t border-slate-200">
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <Label className="text-slate-600 text-sm mb-3 block">访谈类型</Label>
+                    <Select value={interviewType} onValueChange={(value: 'IDI' | 'FGD') => setInterviewType(value)}>
+                      <SelectTrigger className="border-slate-200 bg-white/50 backdrop-blur">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-slate-200">
+                        <SelectItem value="IDI" className="text-slate-800">深度访谈 (IDI)</SelectItem>
+                        <SelectItem value="FGD" className="text-slate-800">焦点小组 (FGD)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
-                
-                {/* 模板上传区域 */}
-                <div className="col-span-2">
-                  <Label className="text-slate-600 text-sm flex items-center">
-                    <span className="mr-2">📋</span>
-                    模板上传
-                  </Label>
-                  <div className="mt-3 grid grid-cols-2 gap-4">
-                    <div>
-                      <input
-                        type="file"
-                        accept=".json,.txt"
-                        onChange={handleTemplateUpload}
-                        className="hidden"
-                        id="template-upload"
-                      />
-                      <Button
-                        onClick={() => document.getElementById('template-upload')?.click()}
-                        variant="outline"
-                        className="w-full border-slate-300 text-slate-600 hover:text-slate-800 hover:border-slate-400"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        上传模板
-                      </Button>
-                    </div>
-                    
-                    <div>
-                      <Button
-                        onClick={() => {
-                          setSelectedTemplate('basic');
-                          alert('已切换到默认模板');
-                        }}
-                        variant="outline"
-                        className="w-full border-slate-300 text-slate-600 hover:text-slate-800 hover:border-slate-400"
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        使用默认模板
-                      </Button>
-                    </div>
+                  
+                  <div>
+                    <Label className="text-slate-600 text-sm mb-3 block">预计时长</Label>
+                    <Select value={interviewDuration} onValueChange={setInterviewDuration}>
+                      <SelectTrigger className="border-slate-200 bg-white/50 backdrop-blur">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-slate-200">
+                        <SelectItem value="30" className="text-slate-800">30分钟</SelectItem>
+                        <SelectItem value="45" className="text-slate-800">45分钟</SelectItem>
+                        <SelectItem value="60" className="text-slate-800">60分钟</SelectItem>
+                        <SelectItem value="90" className="text-slate-800">90分钟</SelectItem>
+                        <SelectItem value="120" className="text-slate-800">120分钟</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <p className="text-slate-500 text-xs mt-2">支持 JSON 和 TXT 格式模板文件</p>
                 </div>
               </div>
 
+              {/* 生成按钮 */}
               <div className="flex justify-center mt-8">
                 <Button 
                   onClick={handleGenerate}
                   disabled={isGenerating || !researchTopic.trim() || !targetAudience.trim() || !researchPurpose.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 px-8"
+                  className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-xl"
                 >
                   {isGenerating ? (
                     <>
@@ -665,7 +583,7 @@ export default function MainWorkspace() {
                     </>
                   ) : (
                     <>
-                      <Brain className="w-4 h-4 mr-2" />
+                      <Sparkles className="w-4 h-4 mr-2" />
                       生成访谈大纲
                     </>
                   )}
