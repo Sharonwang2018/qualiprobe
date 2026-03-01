@@ -567,6 +567,95 @@ export default function MainWorkspace() {
                     </Select>
                   </div>
                 </div>
+
+                {/* 输出语言和模板上传 */}
+                <div className="mt-6 grid grid-cols-2 gap-6">
+                  <div>
+                    <Label className="text-slate-600 text-sm mb-3 block flex items-center">
+                      <span className="mr-2">🌐</span>
+                      输出语言
+                    </Label>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                        className="w-full bg-white/50 backdrop-blur border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-left flex items-center justify-between hover:bg-white/70 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                      >
+                        <span className="flex items-center">
+                          {outputLanguage === '中文' && '🇨🇳 中文'}
+                          {outputLanguage === '英文' && '🇺🇸 英文'}
+                          {outputLanguage === '日文' && '🇯🇵 日文'}
+                          {outputLanguage === '双语对照' && '🌐 双语对照'}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showLanguageDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {showLanguageDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-2xl z-50">
+                          <div className="py-2">
+                            {[
+                              { value: '中文', label: '🇨🇳 中文' },
+                              { value: '英文', label: '🇺🇸 英文' },
+                              { value: '日文', label: '🇯🇵 日文' },
+                              { value: '双语对照', label: '🌐 双语对照' }
+                            ].map((option) => (
+                              <button
+                                key={option.value}
+                                onClick={() => {
+                                  setOutputLanguage(option.value as '中文' | '英文' | '日文' | '双语对照');
+                                  setShowLanguageDropdown(false);
+                                }}
+                                className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors duration-150 flex items-center ${
+                                  outputLanguage === option.value ? 'bg-blue-50 text-blue-600' : 'text-slate-800'
+                                }`}
+                              >
+                                {option.label}
+                                {outputLanguage === option.value && (
+                                  <Check className="w-4 h-4 ml-auto" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-slate-600 text-sm mb-3 block flex items-center">
+                      <span className="mr-2">📋</span>
+                      模板上传
+                    </Label>
+                    <div className="flex space-x-2">
+                      <input
+                        type="file"
+                        accept=".json,.txt"
+                        onChange={handleTemplateUpload}
+                        className="hidden"
+                        id="template-upload"
+                      />
+                      <Button
+                        onClick={() => document.getElementById('template-upload')?.click()}
+                        variant="outline"
+                        className="flex-1 border-slate-200 bg-white/50 backdrop-blur text-slate-600 hover:text-slate-800 hover:bg-white/70"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        上传模板
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setSelectedTemplate('basic');
+                          alert('已切换到默认模板');
+                        }}
+                        variant="outline"
+                        className="flex-1 border-slate-200 bg-white/50 backdrop-blur text-slate-600 hover:text-slate-800 hover:bg-white/70"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        使用默认
+                      </Button>
+                    </div>
+                    <p className="text-slate-400 text-xs mt-2">支持 JSON 和 TXT 格式</p>
+                  </div>
+                </div>
               </div>
 
               {/* 生成按钮 */}

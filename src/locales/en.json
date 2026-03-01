@@ -1,7 +1,7 @@
 {
   "sidebar": {
-    "memory": "Memory",
-    "projectMemory": "Project Memory",
+    "memory": "History",
+    "projectMemory": "History Records",
     "historyRecords": "History Records",
     "currentSession": "Current Session",
     "outline": "Outline",

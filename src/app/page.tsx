@@ -54,7 +54,7 @@ export default function QualiProbe() {
         <Header />
         
         {/* 三栏容器 - 为Header留出空间 */}
-        <div className="flex-1 flex overflow-hidden pt-14">
+        <div className="flex-1 flex overflow-hidden pt-16">
           {/* 左侧面板 - 项目记忆 */}
           <div 
             className="bg-slate-50 border-r border-slate-200 flex-shrink-0"

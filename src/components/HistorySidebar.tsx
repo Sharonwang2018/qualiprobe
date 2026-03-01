@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  Brain, 
   Clock, 
   ChevronLeft, 
   Search,
@@ -178,7 +177,7 @@ export default function HistorySidebar({
         >
           <Clock className="w-5 h-5" />
         </button>
-        <div className="text-gray-500 text-xs">记忆</div>
+        <div className="text-gray-500 text-xs">历史</div>
       </div>
     );
   }
@@ -190,11 +189,11 @@ export default function HistorySidebar({
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mr-3">
-              <Brain className="w-4 h-4 text-white" />
+              <Clock className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-slate-800 font-medium text-sm">项目记忆</h3>
-              <p className="text-slate-500 text-xs">历史记录</p>
+              <h3 className="text-slate-800 font-medium text-sm">历史记录</h3>
+              <p className="text-slate-500 text-xs">项目历史</p>
             </div>
           </div>
           <button

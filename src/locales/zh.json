@@ -1,7 +1,7 @@
 {
   "sidebar": {
-    "memory": "记忆",
-    "projectMemory": "项目记忆",
+    "memory": "历史",
+    "projectMemory": "历史记录",
     "historyRecords": "历史记录",
     "currentSession": "当前会话",
     "outline": "大纲",

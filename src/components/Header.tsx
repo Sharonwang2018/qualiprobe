@@ -9,15 +9,20 @@ export default function Header() {
   const { language, setLanguage, t } = useLanguage();
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6 z-50">
-      {/* 左侧：Orbit 图标和标题 */}
+    <header className="fixed top-0 left-0 right-0 h-16 border-b border-slate-200 bg-white flex items-center justify-between px-6 z-50">
+      {/* 左侧：Orbit 图标和完整标题 */}
       <div className="flex items-center space-x-3">
         <div className="w-6 h-6 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
           <Orbit className="w-4 h-4 text-white" />
         </div>
-        <h1 className="text-lg font-bold text-slate-800 tracking-tight">
-          QualiProbe
-        </h1>
+        <div>
+          <h1 className="text-lg font-bold text-slate-800 tracking-tight">
+            QualiProbe | AI驱动的定性研究洞察引擎
+          </h1>
+          <p className="text-slate-500 text-xs">
+            让研究设计与访谈分析更高效、更系统
+          </p>
+        </div>
       </div>
 
       {/* 右侧：语言切换 Select 组件 */}
