@@ -30,13 +30,14 @@ export const exportToWord = async (data: OutlineData) => {
   const disclaimer = `免责声明：本访谈大纲仅供研究参考使用。访谈中收集的所有个人信息将严格保密，仅用于研究目的。访谈内容将在匿名化后进行分析和报告。`;
 
   // 生成暖场话术
-  const warmUpScript = `暖场话术：
-1. 欢迎与感谢：非常感谢您抽出宝贵时间参与本次访谈。
-2. 自我介绍：我是今天的访谈员[姓名]，来自[公司名称]。
-3. 研究目的说明：我们希望通过今天的交流，深入了解您的真实体验和想法。
-4. 保密承诺：您的所有回答都将严格保密，仅用于研究目的，报告中不会出现您的个人信息。
-5. 录音说明：为了确保信息准确性，我将对访谈进行录音，您是否同意？
-6. 开场提问：让我们从您最初接触相关话题的经历开始聊起。`;
+  const warmUpScript = [
+    "欢迎与感谢：非常感谢您抽出宝贵时间参与本次访谈。",
+    "自我介绍：我是今天的访谈员[姓名]，来自[公司名称]。",
+    "研究目的说明：我们希望通过今天的交流，深入了解您的真实体验和想法。",
+    "保密承诺：您的所有回答都将严格保密，仅用于研究目的，报告中不会出现您的个人信息。",
+    "录音说明：为了确保信息准确性，我将对访谈进行录音，您是否同意？",
+    "开场提问：让我们从您最初接触相关话题的经历开始聊起。"
+  ];
 
   // 生成文档内容
   const doc = new Document({
@@ -290,7 +291,7 @@ export const exportToWord = async (data: OutlineData) => {
             },
           }),
 
-          // 暖场话术
+          // 暖场话术标题
           new Paragraph({
             children: [
               new TextRun({
@@ -315,23 +316,29 @@ export const exportToWord = async (data: OutlineData) => {
             spacing: { before: 320, after: 150 },
           }),
 
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: warmUpScript,
-                size: 22, // 11pt
-                color: "434343",
-                font: {
-                  name: "Microsoft YaHei",
-                },
-              }),
-            ],
-            spacing: { after: 420 },
-            shading: {
-              type: "solid",
-              color: "E8F5E8", // 淡绿色背景
-            },
-          }),
+          // 暖场话术内容 - 每个要点一个段落
+          ...warmUpScript.map((point, index) => (
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `• ${point}`,
+                  size: 22, // 11pt
+                  color: "434343",
+                  font: {
+                    name: "Microsoft YaHei",
+                  },
+                }),
+              ],
+              spacing: { after: 120 },
+              indent: {
+                left: 400, // 缩进
+              },
+              shading: {
+                type: "solid",
+                color: "E8F5E8", // 淡绿色背景
+              },
+            })
+          )),
 
           // 访谈大纲标题
           new Paragraph({

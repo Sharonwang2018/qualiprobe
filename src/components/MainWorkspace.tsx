@@ -77,6 +77,11 @@ interface FineTuneRequest {
   instruction: string;
 }
 
+interface MainWorkspaceProps {
+  outlineData?: OutlineData | null;
+  setOutlineData?: (data: OutlineData | null) => void;
+}
+
 // 语义切片接口
 interface TranscriptChunk {
   id: string;
@@ -200,7 +205,7 @@ const SYSTEM_PROMPT = `你是一位拥有15年经验的"资深定性研究专家
 - 协助优化访谈设计
 - 分析用户需求并提供解决方案`;
 
-export default function MainWorkspace() {
+export default function MainWorkspace({ outlineData: propOutlineData, setOutlineData: propSetOutlineData }: MainWorkspaceProps = {}) {
   // 基础状态
   const [apiKeyStatus, setApiKeyStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [showHelp, setShowHelp] = useState(false);
@@ -466,7 +471,7 @@ export default function MainWorkspace() {
   }, []);
 
   return (
-    <div className="h-full bg-white p-6 overflow-y-auto">
+    <div className="h-full bg-gradient-to-br from-slate-50 to-white overflow-y-auto">
       <div className="w-full px-10 py-8">
         {/* 工作台切换标签 */}
         <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg mb-8">
@@ -496,8 +501,8 @@ export default function MainWorkspace() {
 
         {activeWorkbench === 'outline' && (
           <>
-            {/* 参数设置区 - 白色卡片设计 */}
-            <div className="max-w-3xl mx-auto bg-white/80 backdrop-blur border border-slate-200 shadow-xl rounded-3xl p-8 mb-8">
+            {/* 参数设置区 - 渐进式卡片设计 */}
+            <div className="max-w-4xl mx-auto bg-white border border-indigo-50/50 shadow-xl rounded-3xl p-8 mb-8">
               <div className="space-y-8">
                 {/* 研究主题 - 大字号无边框风格 */}
                 <div>

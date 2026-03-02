@@ -7,10 +7,22 @@ import MainWorkspace from '@/components/MainWorkspace';
 import AgentChat from '@/components/AgentChat';
 import { LanguageProvider } from '@/contexts/LanguageContext';
 
+interface OutlineData {
+  project_title: string;
+  sections: Array<{
+    id?: number;
+    title: string;
+    duration: string;
+    questions: string[];
+    notes: string;
+  }>;
+}
+
 export default function QualiProbe() {
   const [leftWidth, setLeftWidth] = useState(20);
   const [rightWidth, setRightWidth] = useState(30);
   const [isDragging, setIsDragging] = useState<'left' | 'right' | null>(null);
+  const [outlineData, setOutlineData] = useState<OutlineData | null>(null);
 
   const handleMouseDown = (side: 'left' | 'right') => {
     setIsDragging(side);
@@ -65,18 +77,18 @@ export default function QualiProbe() {
           
           {/* 左侧拖拽手柄 */}
           <div 
-            className="w-0.5 bg-slate-100 hover:bg-blue-500 cursor-col-resize transition-all duration-200 hover:scale-x-150 flex-shrink-0"
+            className="w-0.5 bg-transparent border-r border-slate-200 hover:bg-indigo-500/50 cursor-col-resize transition-all duration-300 flex-shrink-0"
             onMouseDown={() => handleMouseDown('left')}
           />
           
           {/* 中间面板 - 主工作区 */}
           <div className="flex-1 bg-white overflow-hidden">
-            <MainWorkspace />
+            <MainWorkspace outlineData={outlineData} setOutlineData={setOutlineData} />
           </div>
           
           {/* 右侧拖拽手柄 */}
           <div 
-            className="w-0.5 bg-slate-100 hover:bg-blue-500 cursor-col-resize transition-all duration-200 hover:scale-x-150 flex-shrink-0"
+            className="w-0.5 bg-transparent border-r border-slate-200 hover:bg-indigo-500/50 cursor-col-resize transition-all duration-300 flex-shrink-0"
             onMouseDown={() => handleMouseDown('right')}
           />
           
@@ -85,7 +97,7 @@ export default function QualiProbe() {
             className="bg-white border-l border-slate-200 flex-shrink-0"
             style={{ width: `${rightWidth}%` }}
           >
-            <AgentChat />
+            <AgentChat outlineData={outlineData} />
           </div>
         </div>
       </div>
