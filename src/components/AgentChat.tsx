@@ -42,6 +42,8 @@ interface AgentChatProps {
   analysisResult?: any;
   transcriptChunks?: any[];
   onScrollToEvidence?: (chunkId: string) => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export default function AgentChat({ 
@@ -52,7 +54,8 @@ export default function AgentChat({
   activeWorkbench = 'outline',
   analysisResult,
   transcriptChunks = [],
-  onScrollToEvidence
+  onScrollToEvidence,
+  onToggleCollapse
 }: AgentChatProps) {
   // 对话状态
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -101,8 +104,9 @@ export default function AgentChat({
   };
 
   // 增强版交互式对话 - 洞察引擎智能关联
-  const handleChat = async () => {
-    if (!currentMessage.trim()) return;
+  const handleChat = async (overrideText?: string) => {
+    const messageText = (overrideText ?? currentMessage).trim();
+    if (!messageText || isChatting) return;
 
     // 首次交互时设置hasInteracted为true
     if (!hasInteracted) {
@@ -112,12 +116,13 @@ export default function AgentChat({
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       type: 'user',
-      content: currentMessage,
-      timestamp: new Date()
+      content: messageText,
+      timestamp: new Date(),
     };
 
     setChatMessages((prev: ChatMessage[]) => [...prev, userMessage]);
-    setCurrentMessage('');
+    // 只有从输入框发送时，才清空输入框
+    if (!overrideText) setCurrentMessage('');
     setIsChatting(true);
     setIsAgentThinking(true);
 
@@ -316,7 +321,7 @@ export default function AgentChat({
           <Brain className="w-5 h-5 text-blue-600 mr-2" />
           <span className="font-bold text-slate-700 text-sm">AI 专家助手</span>
         </div>
-        <button className="text-slate-400 hover:text-slate-600 p-1">
+        <button onClick={onToggleCollapse} className="text-slate-400 hover:text-slate-600 p-1">
           <ChevronLeft className="w-4 h-4" />
         </button>
       </div>
@@ -324,22 +329,6 @@ export default function AgentChat({
       {/* 聊天区域 - 吃掉所有剩余空间 */}
       <div className="flex-1 overflow-y-auto relative">
         <div className="p-4">
-          {/* WelcomeGuide - 只在未交互时显示 */}
-          {chatMessages.length === 0 && (
-            <div className="mb-4">
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 shadow-sm">
-                <div className="flex items-center mb-3">
-                  <Brain className="w-5 h-5 text-blue-600 mr-2" />
-                  <span className="text-blue-800 font-medium text-sm">洞察引擎</span>
-                </div>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  作为你的AI研究助手，我可以帮你优化访谈大纲、分析笔录内容，并提供专业的研究建议。
-                  我已经读取了你的研究信息，可以基于上下文为你提供个性化的建议。
-                </p>
-              </div>
-            </div>
-          )}
-          
           {/* 对话消息列表 */}
           <div className="space-y-3">
             {chatMessages.map((message) => (
@@ -349,15 +338,15 @@ export default function AgentChat({
               >
                 {message.type === 'user' ? (
                   <div className="text-right max-w-[80%]">
-                    <p className="font-medium text-white text-sm inline-block bg-blue-600 px-4 py-2 rounded-2xl rounded-tr-sm">
+                    <p className="font-medium text-white text-sm inline-block bg-slate-800 px-4 py-2 rounded-2xl rounded-br-none shadow-sm">
                       {message.content}
                     </p>
                   </div>
                 ) : (
                   <div className="max-w-[80%]">
                     <div className="flex items-start">
-                      <Brain className="w-4 h-4 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-700 text-sm leading-relaxed bg-slate-100 px-4 py-2 rounded-2xl rounded-tl-sm">
+                      <Brain className="w-4 h-4 text-slate-500 mr-2 mt-0.5 flex-shrink-0" />
+                      <p className="text-slate-700 text-sm leading-relaxed bg-white border border-slate-100 shadow-sm px-4 py-2 rounded-2xl rounded-bl-none">
                         {message.content}
                         {/* 引用联动 - 可点击的原话 */}
                         {message.evidence && onScrollToEvidence && (
@@ -390,17 +379,35 @@ export default function AgentChat({
       </div>
       
       {/* 输入框 - sticky固定在容器底部 */}
-      <div className="sticky bottom-0 m-4 p-4 bg-white border border-slate-100 rounded-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.03)] flex-shrink-0">
+      <div className="sticky bottom-0 m-4 p-4 bg-white/80 backdrop-blur-md border border-slate-100 rounded-2xl shadow-[0_-8px_24px_rgba(0,0,0,0.06)] flex-shrink-0">
+        {!currentMessage.trim() && (
+          <div className="mb-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleChat('优化提问')}
+              className="text-[12px] text-slate-400 border border-slate-200/70 bg-transparent hover:text-slate-600 hover:border-slate-300 transition-colors px-2 py-0.5 rounded-full"
+            >
+              优化提问
+            </button>
+            <button
+              type="button"
+              onClick={() => handleChat('增加细节')}
+              className="text-[12px] text-slate-400 border border-slate-200/70 bg-transparent hover:text-slate-600 hover:border-slate-300 transition-colors px-2 py-0.5 rounded-full"
+            >
+              增加细节
+            </button>
+          </div>
+        )}
         <div className="flex items-center space-x-3">
           <Input
             value={currentMessage}
             onChange={(e) => setCurrentMessage(e.target.value)}
-            placeholder="询问关于研究设计、大纲优化或笔录分析的问题..."
-            className="bg-transparent border-0 text-slate-800 placeholder-slate-400 text-sm flex-1 focus:ring-0 focus:border-0 px-0"
+            placeholder="询问关于大纲优化、笔录分析的问题，或输入修改指令..."
+            className="bg-transparent border-0 text-slate-800 placeholder:text-slate-400/50 text-sm flex-1 focus:ring-0 focus:border-0 px-0"
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleChat()}
           />
           <Button
-            onClick={handleChat}
+            onClick={() => handleChat()}
             disabled={!currentMessage.trim() || isChatting}
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 h-8 w-8 flex items-center justify-center"
           >

@@ -80,6 +80,7 @@ interface FineTuneRequest {
 interface MainWorkspaceProps {
   outlineData?: OutlineData | null;
   setOutlineData?: (data: OutlineData | null) => void;
+  onOutlineGenerated?: (data: OutlineData) => void;
 }
 
 // 语义切片接口
@@ -205,7 +206,7 @@ const SYSTEM_PROMPT = `你是一位拥有15年经验的"资深定性研究专家
 - 协助优化访谈设计
 - 分析用户需求并提供解决方案`;
 
-export default function MainWorkspace({ outlineData: propOutlineData, setOutlineData: propSetOutlineData }: MainWorkspaceProps = {}) {
+export default function MainWorkspace({ outlineData: propOutlineData, setOutlineData: propSetOutlineData, onOutlineGenerated }: MainWorkspaceProps = {}) {
   // 基础状态
   const [apiKeyStatus, setApiKeyStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [showHelp, setShowHelp] = useState(false);
@@ -230,6 +231,12 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
   const [isGenerating, setIsGenerating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingOutline, setEditingOutline] = useState<OutlineData | null>(null);
+
+  useEffect(() => {
+    if (propOutlineData) {
+      setOutlineData(propOutlineData);
+    }
+  }, [propOutlineData]);
 
   // 笔录和分析状态
   const [transcriptText, setTranscriptText] = useState('');
@@ -348,7 +355,14 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
 
       // API成功：直接更新outlineData
       setOutlineData(result);
+      if (propSetOutlineData) {
+        propSetOutlineData(result);
+      }
       setThinkingStep('✅ 大纲生成完成！');
+
+      if (onOutlineGenerated) {
+        onOutlineGenerated(result);
+      }
       
       setTimeout(() => {
         setThinkingStep('');
@@ -510,30 +524,29 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                   <Input
                     value={researchTopic}
                     onChange={(e) => setResearchTopic(e.target.value)}
-                    className="text-2xl font-semibold border-0 bg-transparent px-0 py-0 placeholder-slate-300 focus:ring-0 focus:border-0 text-slate-800"
-                    placeholder="输入您的研究主题..."
+                    className="text-xl font-semibold text-slate-800 border-0 border-b border-slate-200 rounded-none bg-slate-50/50 px-3 py-3 placeholder:text-sm placeholder:text-slate-400 focus-visible:ring-0 focus-visible:border-slate-800"
+                    placeholder="例如：智能家居对老年人生活质量的影响"
                   />
-                  <p className="text-slate-400 text-sm mt-2">例如：智能家居对老年人生活质量的影响</p>
                 </div>
                 
                 {/* 目标受众 */}
                 <div>
-                  <Label className="text-slate-600 text-sm mb-3 block">目标受众</Label>
+                  <Label className="text-slate-600 text-sm mb-1.5 block">目标受众</Label>
                   <Input
                     value={targetAudience}
                     onChange={(e) => setTargetAudience(e.target.value)}
-                    className="text-lg border border-slate-200 bg-white/50 backdrop-blur rounded-lg px-4 py-3 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="text-lg bg-slate-50/50 border border-transparent rounded-lg px-4 py-3 placeholder-slate-400 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/15 transition-colors"
                     placeholder="例如：65岁以上、独立生活的城市老人"
                   />
                 </div>
                 
                 {/* 研究目的 */}
                 <div>
-                  <Label className="text-slate-600 text-sm mb-3 block">研究目的</Label>
+                  <Label className="text-slate-600 text-sm mb-1.5 block">研究目的</Label>
                   <Textarea
                     value={researchPurpose}
                     onChange={(e) => setResearchPurpose(e.target.value)}
-                    className="text-lg border border-slate-200 bg-white/50 backdrop-blur rounded-lg px-4 py-3 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 resize-none"
+                    className="text-lg bg-slate-50/50 border border-transparent rounded-lg px-4 py-3 placeholder-slate-400 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/15 resize-none transition-colors"
                     placeholder="描述您希望通过访谈了解的内容..."
                     rows={3}
                   />
@@ -544,9 +557,9 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
               <div className="mt-8 pt-8 border-t border-slate-200">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <Label className="text-slate-600 text-sm mb-3 block">访谈类型</Label>
+                    <Label className="text-slate-600 text-sm mb-1.5 block">访谈类型</Label>
                     <Select value={interviewType} onValueChange={(value: 'IDI' | 'FGD') => setInterviewType(value)}>
-                      <SelectTrigger className="border-slate-200 bg-white/50 backdrop-blur">
+                      <SelectTrigger className="h-12 border-slate-200 bg-white/50 backdrop-blur">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-slate-200">
@@ -557,9 +570,9 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                   </div>
                   
                   <div>
-                    <Label className="text-slate-600 text-sm mb-3 block">预计时长</Label>
+                    <Label className="text-slate-600 text-sm mb-1.5 block">预计时长</Label>
                     <Select value={interviewDuration} onValueChange={setInterviewDuration}>
-                      <SelectTrigger className="border-slate-200 bg-white/50 backdrop-blur">
+                      <SelectTrigger className="h-12 border-slate-200 bg-white/50 backdrop-blur">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-slate-200">
@@ -583,7 +596,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                     <div className="relative">
                       <button
                         onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                        className="w-full bg-white/50 backdrop-blur border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-left flex items-center justify-between hover:bg-white/70 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        className="w-full bg-white/50 backdrop-blur border border-slate-200 text-slate-800 rounded-lg px-3 py-2.5 text-left flex items-center justify-between hover:bg-white/70 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                       >
                         <span className="flex items-center">
                           {outputLanguage === '中文' && '🇨🇳 中文'}
@@ -596,7 +609,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                       
                       {showLanguageDropdown && (
                         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-2xl z-50">
-                          <div className="py-2">
+                          <div className="py-1">
                             {[
                               { value: '中文', label: '🇨🇳 中文' },
                               { value: '英文', label: '🇺🇸 英文' },
@@ -609,7 +622,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                                   setOutputLanguage(option.value as '中文' | '英文' | '日文' | '双语对照');
                                   setShowLanguageDropdown(false);
                                 }}
-                                className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors duration-150 flex items-center ${
+                                className={`w-full px-3 py-2 text-left hover:bg-slate-50 transition-colors duration-150 flex items-center ${
                                   outputLanguage === option.value ? 'bg-blue-50 text-blue-600' : 'text-slate-800'
                                 }`}
                               >
