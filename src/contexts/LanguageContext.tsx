@@ -10,7 +10,7 @@ type Translations = typeof zhTranslations;
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, any>) => string;
   translations: Translations;
 }
 
@@ -24,12 +24,18 @@ const translations = {
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>('zh');
 
-  const t = (key: string): string => {
+  const t = (key: string, params?: Record<string, any>): string => {
     const keys = key.split('.');
     let value: any = translations[language];
     
     for (const k of keys) {
       value = value?.[k];
+    }
+    
+    if (typeof value === 'string' && params) {
+      return value.replace(/\{\{(\w+)\}\}/g, (match, paramKey) => {
+        return params[paramKey] || match;
+      });
     }
     
     return value || key;

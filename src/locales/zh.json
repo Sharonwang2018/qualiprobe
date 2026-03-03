@@ -19,6 +19,7 @@
     "subtitle": "让研究设计与访谈分析更高效、更系统"
   },
   "header": {
+    "selectLanguage": "选择语言",
     "outlineDesign": "大纲设计",
     "interviewAnalysis": "访谈分析"
   },
@@ -32,7 +33,8 @@
     "templateUpload": "模板上传",
     "uploadTemplate": "上传模板",
     "useDefaultTemplate": "使用默认模板",
-    "templateSupport": "支持 JSON、TXT 格式的访谈大纲模板",
+    "templateSupport": "支持 JSON 和 TXT 格式",
+    "defaultTemplateSelected": "已切换到默认模板",
     "generateOutline": "生成访谈大纲",
     "generating": "生成中...",
     "generatedOutline": "生成的访谈大纲",
@@ -62,26 +64,25 @@
     "fineTune": "微调",
     "exportReport": "导出报告",
     "transcriptUpload": "笔录上传",
-    "selectFile": "选择文件 (.txt/.docx)",
+    "selectFile": "选择文件",
     "pasteBelow": "或直接粘贴下方",
     "transcriptContent": "访谈笔录内容",
     "transcriptPlaceholder": "请粘贴访谈笔录内容...",
     "transcriptPreview": "笔录预览",
     "viewOriginal": "查看原文位置",
     "waitingForTranscript": "等待笔录导入后开启解析",
-    "transcriptImportPrompt": "请在右侧上传或粘贴访谈笔录内容，系统将自动生成深度洞察分析报告。"
+    "transcriptImportPrompt": "请在右侧上传或粘贴访谈笔录内容，系统将自动生成深度洞察分析报告。",
+    "supportedFormats": "支持 .txt, .docx, .mp3 等格式"
   },
   "agent": {
-    "qualiProbeAgent": "QualiProbe Agent",
-    "insightEngine": "洞察引擎",
-    "welcome": "你好，我是 QualiProbe 洞察引擎。请问有什么可以帮您？",
-    "askMoreDetails": "追问更多细节...",
-    "scanningTranscript": "🔍 正在扫描笔录切片以获取证据...",
-    "processing": "处理中...",
-    "apply": "应用",
-    "startInsightAnalysis": "点击启动洞察解析",
-    "launchInsight": "启动洞察",
-    "launchInsightTooltip": "启动 AI 洞察引擎，开始深度解析"
+    "title": "AI 专家助手",
+    "placeholder": "询问关于大纲优化、笔录分析的问题，或输入修改指令...",
+    "optimizeQuestion": "优化提问",
+    "addDetails": "增加细节",
+    "noHistory": "暂无历史记录",
+    "searchPlaceholder": "搜索历史记录...",
+    "noMatches": "未找到匹配的记录",
+    "sectionsCount": "{{count}} 个环节"
   },
   "interviewTypes": {
     "idi": "深度访谈 (IDI)",
@@ -103,6 +104,35 @@
   "errors": {
     "operationFailed": "操作失败",
     "templateUploadFailed": "模板上传失败，请检查文件格式",
-    "conversationFailed": "对话失败，请稍后重试"
+    "conversationFailed": "对话失败，请稍后重试",
+    "fillRequiredFields": "请填写完整的研究信息",
+    "templateUploadSuccess": "模板上传成功！"
+  },
+  "workspace": {
+    "formTitle": "研究设计",
+    "researchTopic": "研究主题",
+    "targetAudience": "目标受众",
+    "researchPurpose": "研究目的",
+    "interviewType": "访谈类型",
+    "interviewDuration": "预计时长",
+    "outputLanguage": "输出语言",
+    "templateUpload": "模板上传",
+    "generate": "生成访谈大纲",
+    "generating": "生成中...",
+    "edit": "编辑",
+    "export": "导出",
+    "projectTitle": "项目标题",
+    "duration": "时长",
+    "questions": "问题",
+    "notes": "备注",
+    "addSection": "添加环节",
+    "save": "保存",
+    "cancel": "取消",
+    "professionalOutline": "专业访谈大纲",
+    "noOutline": "暂无大纲",
+    "tokenConsumption": "预计消耗 Token：{{count}}",
+    "researchTopicPlaceholder": "例如：智能家居对老年人生活质量的影响",
+    "targetAudiencePlaceholder": "例如：老年人群体",
+    "researchPurposePlaceholder": "例如：了解智能家居的使用体验与需求"
   }
 }

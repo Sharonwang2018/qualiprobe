@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { 
   Brain, 
   Edit3, 
@@ -207,6 +208,7 @@ const SYSTEM_PROMPT = `你是一位拥有15年经验的"资深定性研究专家
 - 分析用户需求并提供解决方案`;
 
 export default function MainWorkspace({ outlineData: propOutlineData, setOutlineData: propSetOutlineData, onOutlineGenerated }: MainWorkspaceProps = {}) {
+  const { t } = useLanguage();
   // 基础状态
   const [apiKeyStatus, setApiKeyStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [showHelp, setShowHelp] = useState(false);
@@ -287,17 +289,17 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
       
       setOutlineData(template);
       setSelectedTemplate('custom');
-      alert('模板上传成功！');
+      alert(t('errors.templateUploadSuccess'));
     } catch (error) {
       console.error('模板上传失败:', error);
-      showError('模板上传失败，请检查文件格式');
+      showError(t('errors.templateUploadFailed'));
     }
   };
 
   // 生成大纲 - 去Mock化重构，强制API调用
   const handleGenerate = async () => {
     if (!researchTopic.trim() || !targetAudience.trim() || !researchPurpose.trim()) {
-      showError('请填写完整的研究信息');
+      showError(t('errors.fillRequiredFields'));
       return;
     }
 
@@ -435,10 +437,10 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
     
     const newSection: Section = {
       id: editingOutline.sections.length + 1,
-      title: '新环节',
+      title: t('workspace.addSection'),
       duration: '15分钟',
-      questions: ['请在此添加问题'],
-      notes: '该环节的研究目的和注意事项'
+      questions: [t('workspace.questions')],
+      notes: t('workspace.researchPurposePlaceholder')
     };
     
     setEditingOutline({
@@ -460,7 +462,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
   // 导出功能
   const handleExport = () => {
     if (!outlineData) {
-      alert('请先生成大纲');
+      alert(t('workspace.noOutline'));
       return;
     }
     exportToWord(outlineData);
@@ -498,7 +500,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
             }`}
           >
             <Edit3 className="w-4 h-4 inline mr-2" />
-            大纲设计
+            {t('header.outlineDesign')}
           </button>
           <button
             onClick={() => setActiveWorkbench('analysis')}
@@ -509,7 +511,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
             }`}
           >
             <Search className="w-4 h-4 inline mr-2" />
-            访谈分析
+            {t('header.interviewAnalysis')}
           </button>
         </div>
 
@@ -520,34 +522,34 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
               <div className="space-y-8">
                 {/* 研究主题 - 大字号无边框风格 */}
                 <div>
-                  <Label className="text-slate-600 text-sm mb-3 block">研究主题</Label>
+                  <Label className="text-slate-600 text-sm mb-3 block">{t('workspace.researchTopic')}</Label>
                   <Input
                     value={researchTopic}
                     onChange={(e) => setResearchTopic(e.target.value)}
                     className="text-xl font-semibold text-slate-800 border-0 border-b border-slate-200 rounded-none bg-slate-50/50 px-3 py-3 placeholder:text-sm placeholder:text-slate-400 focus-visible:ring-0 focus-visible:border-slate-800"
-                    placeholder="例如：智能家居对老年人生活质量的影响"
+                    placeholder={t('workspace.researchTopicPlaceholder')}
                   />
                 </div>
                 
                 {/* 目标受众 */}
                 <div>
-                  <Label className="text-slate-600 text-sm mb-1.5 block">目标受众</Label>
+                  <Label className="text-slate-600 text-sm mb-1.5 block">{t('workspace.targetAudience')}</Label>
                   <Input
                     value={targetAudience}
                     onChange={(e) => setTargetAudience(e.target.value)}
                     className="text-lg bg-slate-50/50 border border-transparent rounded-lg px-4 py-3 placeholder-slate-400 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/15 transition-colors"
-                    placeholder="例如：65岁以上、独立生活的城市老人"
+                    placeholder={t('workspace.targetAudiencePlaceholder')}
                   />
                 </div>
                 
                 {/* 研究目的 */}
                 <div>
-                  <Label className="text-slate-600 text-sm mb-1.5 block">研究目的</Label>
+                  <Label className="text-slate-600 text-sm mb-1.5 block">{t('workspace.researchPurpose')}</Label>
                   <Textarea
                     value={researchPurpose}
                     onChange={(e) => setResearchPurpose(e.target.value)}
                     className="text-lg bg-slate-50/50 border border-transparent rounded-lg px-4 py-3 placeholder-slate-400 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/15 resize-none transition-colors"
-                    placeholder="描述您希望通过访谈了解的内容..."
+                    placeholder={t('workspace.researchPurposePlaceholder')}
                     rows={3}
                   />
                 </div>
@@ -557,30 +559,30 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
               <div className="mt-8 pt-8 border-t border-slate-200">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <Label className="text-slate-600 text-sm mb-1.5 block">访谈类型</Label>
+                    <Label className="text-slate-600 text-sm mb-1.5 block">{t('workspace.interviewType')}</Label>
                     <Select value={interviewType} onValueChange={(value: 'IDI' | 'FGD') => setInterviewType(value)}>
                       <SelectTrigger className="h-12 border-slate-200 bg-white/50 backdrop-blur">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-slate-200">
-                        <SelectItem value="IDI" className="text-slate-800">深度访谈 (IDI)</SelectItem>
-                        <SelectItem value="FGD" className="text-slate-800">焦点小组 (FGD)</SelectItem>
+                        <SelectItem value="IDI" className="text-slate-800">{t('interviewTypes.idi')}</SelectItem>
+                        <SelectItem value="FGD" className="text-slate-800">{t('interviewTypes.fgd')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   
                   <div>
-                    <Label className="text-slate-600 text-sm mb-1.5 block">预计时长</Label>
+                    <Label className="text-slate-600 text-sm mb-1.5 block">{t('workspace.interviewDuration')}</Label>
                     <Select value={interviewDuration} onValueChange={setInterviewDuration}>
                       <SelectTrigger className="h-12 border-slate-200 bg-white/50 backdrop-blur">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-slate-200">
-                        <SelectItem value="30" className="text-slate-800">30分钟</SelectItem>
-                        <SelectItem value="45" className="text-slate-800">45分钟</SelectItem>
-                        <SelectItem value="60" className="text-slate-800">60分钟</SelectItem>
-                        <SelectItem value="90" className="text-slate-800">90分钟</SelectItem>
-                        <SelectItem value="120" className="text-slate-800">120分钟</SelectItem>
+                        <SelectItem value="30" className="text-slate-800">{t('durations.30')}</SelectItem>
+                        <SelectItem value="45" className="text-slate-800">{t('durations.45')}</SelectItem>
+                        <SelectItem value="60" className="text-slate-800">{t('durations.60')}</SelectItem>
+                        <SelectItem value="90" className="text-slate-800">{t('durations.90')}</SelectItem>
+                        <SelectItem value="120" className="text-slate-800">{t('durations.120')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -591,7 +593,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                   <div>
                     <Label className="text-slate-600 text-sm mb-3 block flex items-center">
                       <span className="mr-2">🌐</span>
-                      输出语言
+                      {t('workspace.outputLanguage')}
                     </Label>
                     <div className="relative">
                       <button
@@ -599,10 +601,10 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                         className="w-full bg-white/50 backdrop-blur border border-slate-200 text-slate-800 rounded-lg px-3 py-2.5 text-left flex items-center justify-between hover:bg-white/70 transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                       >
                         <span className="flex items-center">
-                          {outputLanguage === '中文' && '🇨🇳 中文'}
-                          {outputLanguage === '英文' && '🇺🇸 英文'}
-                          {outputLanguage === '日文' && '🇯🇵 日文'}
-                          {outputLanguage === '双语对照' && '🌐 双语对照'}
+                          {outputLanguage === '中文' && t('languages.chinese')}
+                          {outputLanguage === '英文' && t('languages.english')}
+                          {outputLanguage === '日文' && t('languages.japanese')}
+                          {outputLanguage === '双语对照' && t('languages.bilingual')}
                         </span>
                         <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showLanguageDropdown ? 'rotate-180' : ''}`} />
                       </button>
@@ -611,10 +613,10 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-2xl z-50">
                           <div className="py-1">
                             {[
-                              { value: '中文', label: '🇨🇳 中文' },
-                              { value: '英文', label: '🇺🇸 英文' },
-                              { value: '日文', label: '🇯🇵 日文' },
-                              { value: '双语对照', label: '🌐 双语对照' }
+                              { value: '中文', label: t('languages.chinese') },
+                              { value: '英文', label: t('languages.english') },
+                              { value: '日文', label: t('languages.japanese') },
+                              { value: '双语对照', label: t('languages.bilingual') }
                             ].map((option) => (
                               <button
                                 key={option.value}
@@ -641,7 +643,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                   <div>
                     <Label className="text-slate-600 text-sm mb-3 block flex items-center">
                       <span className="mr-2">📋</span>
-                      模板上传
+                      {t('workspace.templateUpload')}
                     </Label>
                     <div className="flex space-x-2">
                       <input
@@ -657,21 +659,21 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                         className="flex-1 border-slate-200 bg-white/50 backdrop-blur text-slate-600 hover:text-slate-800 hover:bg-white/70"
                       >
                         <Upload className="w-4 h-4 mr-2" />
-                        上传模板
+                        {t('outline.uploadTemplate')}
                       </Button>
                       <Button
                         onClick={() => {
                           setSelectedTemplate('basic');
-                          alert('已切换到默认模板');
+                          alert(t('outline.defaultTemplateSelected'));
                         }}
                         variant="outline"
                         className="flex-1 border-slate-200 bg-white/50 backdrop-blur text-slate-600 hover:text-slate-800 hover:bg-white/70"
                       >
                         <FileText className="w-4 h-4 mr-2" />
-                        使用默认
+                        {t('outline.useDefaultTemplate')}
                       </Button>
                     </div>
-                    <p className="text-slate-400 text-xs mt-2">支持 JSON 和 TXT 格式</p>
+                    <p className="text-slate-400 text-xs mt-2">{t('outline.templateSupport')}</p>
                   </div>
                 </div>
               </div>
@@ -686,12 +688,12 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      生成中...
+                      {t('workspace.generating')}
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 mr-2" />
-                      生成访谈大纲
+                      {t('workspace.generate')}
                     </>
                   )}
                 </Button>
@@ -753,7 +755,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
                   >
                     <Download className="w-4 h-4" />
-                    <span className="font-medium">Download</span>
+                    <span className="font-medium">{t('workspace.export')}</span>
                   </Button>
                 </div>
                 
@@ -765,17 +767,13 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                     className="bg-white/80 backdrop-blur border-slate-300 text-slate-600 hover:text-slate-800 hover:bg-white px-4 py-2 rounded-lg shadow-md transition-all duration-200 flex items-center space-x-2"
                   >
                     <Edit3 className="w-4 h-4" />
-                    <span className="font-medium">编辑</span>
+                    <span className="font-medium">{t('workspace.edit')}</span>
                   </Button>
-                </div>
-                
-                <div className="mb-8 mt-16">
-                  <h2 className="text-xl font-bold text-slate-800 text-center">生成的大纲</h2>
                 </div>
                 
                 <div className="text-center mb-8">
                   <h3 className="text-2xl font-bold text-slate-800 mb-3">{outlineData.project_title}</h3>
-                  <p className="text-slate-500">专业访谈大纲</p>
+                  <p className="text-slate-500">{t('workspace.professionalOutline')}</p>
                 </div>
                 
                 {outlineData.sections.map((section, index) => (
@@ -790,7 +788,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                     
                     <div className="space-y-4">
                       <div>
-                        <h5 className="font-medium text-slate-700 mb-3">问题列表</h5>
+                        <h5 className="font-medium text-slate-700 mb-3">{t('workspace.questions')}</h5>
                         <ul className="space-y-3">
                           {section.questions.map((question, qIndex) => (
                             <li key={qIndex} className="flex items-start">
@@ -803,7 +801,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                       
                       {section.notes && (
                         <div>
-                          <h5 className="font-medium text-slate-700 mb-3">备注</h5>
+                          <h5 className="font-medium text-slate-700 mb-3">{t('workspace.notes')}</h5>
                           <p className="text-slate-600 text-sm bg-slate-50 p-4 rounded">
                             {section.notes}
                           </p>
@@ -825,16 +823,16 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
                   >
                     <Download className="w-4 h-4" />
-                    <span className="font-medium">Download</span>
+                    <span className="font-medium">{t('workspace.export')}</span>
                   </Button>
                 </div>
                 
                 <div className="mb-8 mt-16">
-                  <h2 className="text-xl font-bold text-slate-800 text-center">编辑大纲</h2>
+                  <h2 className="text-xl font-bold text-slate-800 text-center">{t('workspace.editOutline')}</h2>
                 </div>
                 
                 <div className="bg-slate-50 rounded-lg p-6 mb-8 shadow-sm">
-                  <Label className="text-slate-600 text-sm">项目标题</Label>
+                  <Label className="text-slate-600 text-sm">{t('workspace.projectTitle')}</Label>
                   <Input
                     value={editingOutline.project_title}
                     onChange={(e) => setEditingOutline({
@@ -865,7 +863,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                     
                     <div className="grid grid-cols-2 gap-6 mb-6">
                       <div>
-                        <Label className="text-slate-600 text-sm">时长</Label>
+                        <Label className="text-slate-600 text-sm">{t('workspace.duration')}</Label>
                         <Input
                           value={section.duration}
                           onChange={(e) => handleSectionEdit(index, 'duration', e.target.value)}
@@ -875,7 +873,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                     </div>
                     
                     <div className="mb-6">
-                      <Label className="text-slate-600 text-sm">问题列表</Label>
+                      <Label className="text-slate-600 text-sm">{t('workspace.questions')}</Label>
                       <div className="space-y-3 mt-3">
                         {section.questions.map((question, qIndex) => (
                           <Input
@@ -887,19 +885,19 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                               handleSectionEdit(index, 'questions', newQuestions);
                             }}
                             className="bg-white border-slate-300 text-slate-800"
-                            placeholder={`问题 ${qIndex + 1}`}
+                            placeholder={t('workspace.questions') + ` ${qIndex + 1}`}
                           />
                         ))}
                       </div>
                     </div>
                     
                     <div>
-                      <Label className="text-slate-600 text-sm">备注</Label>
+                      <Label className="text-slate-600 text-sm">{t('workspace.notes')}</Label>
                       <Textarea
                         value={section.notes}
                         onChange={(e) => handleSectionEdit(index, 'notes', e.target.value)}
                         className="mt-3 bg-white border-slate-300 text-slate-800"
-                        placeholder="该环节的研究目的和注意事项"
+                        placeholder={t('workspace.researchPurposePlaceholder')}
                         rows={3}
                       />
                     </div>
@@ -909,13 +907,13 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                 <div className="flex space-x-3">
                   <Button onClick={addSection} variant="outline" className="text-slate-600 border-slate-300 hover:text-slate-800">
                     <Edit3 className="w-4 h-4 mr-2" />
-                    添加环节
+                    {t('workspace.addSection')}
                   </Button>
                   <Button onClick={handleSaveEdit} className="bg-green-600 hover:bg-green-700">
-                    保存更改
+                    {t('workspace.saveChanges')}
                   </Button>
                   <Button onClick={handleCancelEdit} variant="outline" className="text-slate-600 border-slate-300 hover:text-slate-800">
-                    取消
+                    {t('workspace.cancel')}
                   </Button>
                 </div>
               </div>
@@ -924,13 +922,13 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
         )}
 
         {activeWorkbench === 'analysis' && (
-          /* 访谈分析工作台 */
+          /* {t('header.interviewAnalysis')} */
           <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
             <Upload className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-600 font-medium">请上传您的访谈笔录以开始智能分析</p>
-            <p className="text-slate-400 text-sm mt-2">支持 .txt, .docx, .mp3 等格式</p>
+            <p className="text-slate-600 font-medium">{t('analysis.transcriptUploadPrompt')}</p>
+            <p className="text-slate-400 text-sm mt-2">{t('analysis.supportedFormats')}</p>
             <button className="mt-6 bg-white border border-slate-200 px-6 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
-              选择文件
+              {t('analysis.selectFile')}
             </button>
           </div>
         )}

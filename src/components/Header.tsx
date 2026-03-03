@@ -17,10 +17,10 @@ export default function Header() {
         </div>
         <div>
           <h1 className="text-lg font-bold text-slate-800 tracking-tight">
-            QualiProbe | AI驱动的定性研究洞察引擎
+            {t('app.title')}
           </h1>
           <p className="text-slate-500 text-xs">
-            让研究设计与访谈分析更高效、更系统
+            {t('app.subtitle')}
           </p>
         </div>
       </div>
@@ -31,12 +31,12 @@ export default function Header() {
           <SelectTrigger className="w-32 h-8 border-slate-200 text-slate-600 hover:text-slate-800">
             <div className="flex items-center space-x-2">
               <Globe className="w-4 h-4" />
-              <SelectValue placeholder="选择语言" />
+              <SelectValue placeholder={t('header.selectLanguage')} />
             </div>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="zh">中文</SelectItem>
-            <SelectItem value="en">English</SelectItem>
+            <SelectItem value="zh">{t('languages.chinese').split(' ')[1]}</SelectItem>
+            <SelectItem value="en">{t('languages.english').split(' ')[1]}</SelectItem>
           </SelectContent>
         </Select>
       </div>

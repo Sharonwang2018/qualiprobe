@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { 
   Brain, 
   ChevronLeft, 
@@ -57,6 +58,7 @@ export default function AgentChat({
   onScrollToEvidence,
   onToggleCollapse
 }: AgentChatProps) {
+  const { t } = useLanguage();
   // 对话状态
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
@@ -136,7 +138,7 @@ export default function AgentChat({
       // 上下文自动喂养 - 静默背景注入
       const contextPrompt = `
 【当前上下文】
-- [当前页面模式]: ${activeWorkbench === 'outline' ? '大纲设计' : '访谈分析'}
+- [当前页面模式]: ${activeWorkbench === 'outline' ? t('header.outlineDesign') : t('header.interviewAnalysis')}
 - [研究主题]: ${researchTopic || '未填写'}
 - [核心目标]: ${researchPurpose || '未填写'}
 - [当前大纲快照]: ${outlineData ? JSON.stringify(outlineData.sections?.slice(0, 2)) : '无大纲数据'}
@@ -284,7 +286,7 @@ export default function AgentChat({
 - 目的：${researchPurpose || '未设置'}
 
 **我可以帮你：**
-• 优化访谈大纲设计
+• {t('header.outlineDesign')}
 • 深度分析访谈内容
 • 提供专业研究建议
 • 提取精准原文证据
@@ -319,7 +321,7 @@ export default function AgentChat({
       <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 flex-shrink-0">
         <div className="flex items-center">
           <Brain className="w-5 h-5 text-blue-600 mr-2" />
-          <span className="font-bold text-slate-700 text-sm">AI 专家助手</span>
+          <span className="font-bold text-slate-700 text-sm">{t('agent.title')}</span>
         </div>
         <button onClick={onToggleCollapse} className="text-slate-400 hover:text-slate-600 p-1">
           <ChevronLeft className="w-4 h-4" />
@@ -384,17 +386,17 @@ export default function AgentChat({
           <div className="mb-2 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => handleChat('优化提问')}
+              onClick={() => handleChat(t('agent.optimizeQuestion'))}
               className="text-[12px] text-slate-400 border border-slate-200/70 bg-transparent hover:text-slate-600 hover:border-slate-300 transition-colors px-2 py-0.5 rounded-full"
             >
-              优化提问
+              {t('agent.optimizeQuestion')}
             </button>
             <button
               type="button"
-              onClick={() => handleChat('增加细节')}
+              onClick={() => handleChat(t('agent.addDetails'))}
               className="text-[12px] text-slate-400 border border-slate-200/70 bg-transparent hover:text-slate-600 hover:border-slate-300 transition-colors px-2 py-0.5 rounded-full"
             >
-              增加细节
+              {t('agent.addDetails')}
             </button>
           </div>
         )}
@@ -402,7 +404,7 @@ export default function AgentChat({
           <Input
             value={currentMessage}
             onChange={(e) => setCurrentMessage(e.target.value)}
-            placeholder="询问关于大纲优化、笔录分析的问题，或输入修改指令..."
+            placeholder={t('agent.placeholder')}
             className="bg-transparent border-0 text-slate-800 placeholder:text-slate-400/50 text-sm flex-1 focus:ring-0 focus:border-0 px-0"
             onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleChat()}
           />

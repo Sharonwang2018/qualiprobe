@@ -19,6 +19,7 @@
     "subtitle": "Making Research Design and Interview Analysis More Efficient and Systematic"
   },
   "header": {
+    "selectLanguage": "Select Language",
     "outlineDesign": "Outline Design",
     "interviewAnalysis": "Interview Analysis"
   },
@@ -32,7 +33,8 @@
     "templateUpload": "Template Upload",
     "uploadTemplate": "Upload Template",
     "useDefaultTemplate": "Use Default Template",
-    "templateSupport": "Supports JSON, TXT format interview outline templates",
+    "templateSupport": "Supports JSON and TXT formats",
+    "defaultTemplateSelected": "Switched to default template",
     "generateOutline": "Generate Interview Outline",
     "generating": "Generating...",
     "generatedOutline": "Generated Interview Outline",
@@ -62,26 +64,25 @@
     "fineTune": "Fine-tune",
     "exportReport": "Export Report",
     "transcriptUpload": "Transcript Upload",
-    "selectFile": "Select File (.txt/.docx)",
+    "selectFile": "Select File",
     "pasteBelow": "Or paste below",
     "transcriptContent": "Transcript Content",
     "transcriptPlaceholder": "Please paste interview transcript content...",
     "transcriptPreview": "Transcript Preview",
     "viewOriginal": "View Original Location",
     "waitingForTranscript": "Waiting for transcript import to start analysis",
-    "transcriptImportPrompt": "Please upload or paste interview transcript content on the right, and the system will automatically generate deep insight analysis reports."
+    "transcriptImportPrompt": "Please upload or paste interview transcript content on the right, and the system will automatically generate deep insight analysis reports.",
+    "supportedFormats": "Supports .txt, .docx, .mp3 formats"
   },
   "agent": {
-    "qualiProbeAgent": "QualiProbe Agent",
-    "insightEngine": "Insight Engine",
-    "welcome": "Hello, I'm QualiProbe Insight Engine. How can I help you?",
-    "askMoreDetails": "Ask for more details...",
-    "scanningTranscript": "🔍 Scanning transcript chunks for evidence...",
-    "processing": "Processing...",
-    "apply": "Apply",
-    "startInsightAnalysis": "Click to start insight analysis",
-    "launchInsight": "Launch Insight",
-    "launchInsightTooltip": "Start AI insight engine for deep analysis"
+    "title": "AI Expert Assistant",
+    "placeholder": "Ask about outline optimization, transcript analysis, or enter modification instructions...",
+    "optimizeQuestion": "Optimize Question",
+    "addDetails": "Add Details",
+    "noHistory": "No history records",
+    "searchPlaceholder": "Search history records...",
+    "noMatches": "No matching records found",
+    "sectionsCount": "{{count}} sections"
   },
   "interviewTypes": {
     "idi": "In-depth Interview (IDI)",
@@ -103,6 +104,35 @@
   "errors": {
     "operationFailed": "Operation Failed",
     "templateUploadFailed": "Template upload failed, please check file format",
-    "conversationFailed": "Conversation failed, please try again later"
+    "conversationFailed": "Conversation failed, please try again later",
+    "fillRequiredFields": "Please fill in complete research information",
+    "templateUploadSuccess": "Template uploaded successfully!"
+  },
+  "workspace": {
+    "formTitle": "Research Design",
+    "researchTopic": "Research Topic",
+    "targetAudience": "Target Audience",
+    "researchPurpose": "Research Purpose",
+    "interviewType": "Interview Type",
+    "interviewDuration": "Duration",
+    "outputLanguage": "Output Language",
+    "templateUpload": "Template Upload",
+    "generate": "Generate Interview Outline",
+    "generating": "Generating...",
+    "edit": "Edit",
+    "export": "Export",
+    "projectTitle": "Project Title",
+    "duration": "Duration",
+    "questions": "Questions",
+    "notes": "Notes",
+    "addSection": "Add Section",
+    "save": "Save",
+    "cancel": "Cancel",
+    "professionalOutline": "Professional Interview Outline",
+    "noOutline": "No outline available",
+    "tokenConsumption": "Estimated Token consumption: {{count}}",
+    "researchTopicPlaceholder": "e.g., Impact of smart homes on elderly quality of life",
+    "targetAudiencePlaceholder": "e.g., Elderly population",
+    "researchPurposePlaceholder": "e.g., Understand smart home usage experience and needs"
   }
 }

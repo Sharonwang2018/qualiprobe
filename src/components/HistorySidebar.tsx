@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface OutlineData {
   project_title: string;
@@ -59,6 +60,7 @@ export default function HistorySidebar({
   isCollapsed = false,
   onToggleCollapse
 }: HistorySidebarProps) {
+  const { t } = useLanguage();
   // 搜索和过滤状态
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -89,7 +91,7 @@ export default function HistorySidebar({
         >
           <Clock className="w-5 h-5" />
         </button>
-        <div className="text-gray-500 text-xs">历史</div>
+        <div className="text-gray-500 text-xs">{t('sidebar.memory')}</div>
       </div>
     );
   }
@@ -104,8 +106,8 @@ export default function HistorySidebar({
               <Clock className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-slate-800 font-medium text-sm">历史记录</h3>
-              <p className="text-slate-500 text-xs">项目历史</p>
+              <h3 className="text-slate-800 font-medium text-sm">{t('sidebar.historyRecords')}</h3>
+              <p className="text-slate-500 text-xs">{t('sidebar.projectMemory')}</p>
             </div>
           </div>
           <button
@@ -124,7 +126,7 @@ export default function HistorySidebar({
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索历史记录..."
+            placeholder={t('agent.searchPlaceholder')}
             className="pl-10 pr-10 bg-white border-slate-300 text-slate-800 placeholder-slate-400 text-sm"
           />
           {searchQuery && (
@@ -143,7 +145,7 @@ export default function HistorySidebar({
         {/* 历史记录 */}
         <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-slate-800 font-medium text-sm">历史记录</h4>
+            <h4 className="text-slate-800 font-medium text-sm">{t('sidebar.historyRecords')}</h4>
             <span className="text-xs text-slate-500">
               {filteredHistory.length} 项
             </span>
@@ -166,7 +168,7 @@ export default function HistorySidebar({
                     <span className={`text-xs px-2 py-1 rounded font-medium ${
                       record.type === 'outline' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                     }`}>
-                      {record.type === 'outline' ? '大纲' : '分析'}
+                      {record.type === 'outline' ? t('sidebar.outline') : t('sidebar.analysis')}
                     </span>
                     <span className="text-xs text-slate-500">
                       {formatDateToYYYYMMDD(new Date(record.timestamp))}
@@ -178,7 +180,7 @@ export default function HistorySidebar({
                   <div className="mt-2 text-xs text-slate-500">
                     {record.type === 'outline' && (
                       <span>
-                        {(record.data as OutlineData).sections?.length || 0} 个环节
+                        {t('agent.sectionsCount', { count: (record.data as OutlineData).sections?.length || 0 })}
                       </span>
                     )}
                     {record.type === 'analysis' && (
@@ -194,7 +196,7 @@ export default function HistorySidebar({
             <div className="text-center py-8">
               <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
               <p className="text-slate-500 text-sm">
-                {searchQuery ? '未找到匹配的记录' : '暂无历史记录'}
+                {searchQuery ? t('agent.noMatches') : t('sidebar.noHistory')}
               </p>
             </div>
           )}
