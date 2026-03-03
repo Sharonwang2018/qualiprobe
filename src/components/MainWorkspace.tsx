@@ -471,7 +471,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
   }, []);
 
   return (
-    <div className="h-full bg-gradient-to-br from-slate-50 to-white overflow-y-auto">
+    <div className="h-full bg-[#F8FAFC] overflow-y-auto">
       <div className="w-full px-10 py-8">
         {/* 工作台切换标签 */}
         <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg mb-8">
@@ -501,8 +501,8 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
 
         {activeWorkbench === 'outline' && (
           <>
-            {/* 参数设置区 - 渐进式卡片设计 */}
-            <div className="max-w-4xl mx-auto bg-white border border-indigo-50/50 shadow-xl rounded-3xl p-8 mb-8">
+            {/* 参数设置区 - 精致纸张质感 */}
+            <div className="max-w-4xl mx-auto bg-white border border-slate-50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[32px] p-6 mb-8">
               <div className="space-y-8">
                 {/* 研究主题 - 大字号无边框风格 */}
                 <div>

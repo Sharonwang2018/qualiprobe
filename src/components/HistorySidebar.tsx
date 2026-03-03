@@ -58,6 +58,13 @@ interface HistorySidebarProps {
   onToggleCollapse?: () => void;
 }
 
+const formatDateToYYYYMMDD = (date: Date) => {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-indexed
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}/${month}/${day}`;
+};
+
 export default function HistorySidebar({
   outlineData,
   analysisResult,
@@ -239,8 +246,8 @@ export default function HistorySidebar({
                     大纲
                   </span>
                   <span className="text-xs text-slate-500">
-                    {new Date().toLocaleDateString()}
-                  </span>
+                      {formatDateToYYYYMMDD(new Date())}
+                    </span>
                 </div>
                 <h5 className="text-slate-800 text-sm font-medium truncate mt-2">{outlineData.project_title}</h5>
               </div>
@@ -253,7 +260,7 @@ export default function HistorySidebar({
                     分析
                   </span>
                   <span className="text-xs text-slate-500">
-                    {new Date().toLocaleDateString()}
+                    {formatDateToYYYYMMDD(new Date())}
                   </span>
                 </div>
                 <h5 className="text-slate-800 text-sm font-medium truncate mt-2">笔录分析</h5>
@@ -289,7 +296,7 @@ export default function HistorySidebar({
                       {record.type === 'outline' ? '大纲' : '分析'}
                     </span>
                     <span className="text-xs text-slate-500">
-                      {record.timestamp.toLocaleDateString()}
+                      {formatDateToYYYYMMDD(record.timestamp)}
                     </span>
                   </div>
                   <h5 className="text-slate-800 text-sm font-medium truncate mt-2">{record.title}</h5>

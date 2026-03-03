@@ -311,7 +311,7 @@ export default function AgentChat({
   return (
     <div className="flex flex-col h-full bg-white">
       {/* 头部 */}
-      <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+      <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 flex-shrink-0">
         <div className="flex items-center">
           <Brain className="w-5 h-5 text-blue-600 mr-2" />
           <span className="font-bold text-slate-700 text-sm">AI 专家助手</span>
@@ -389,8 +389,8 @@ export default function AgentChat({
         </div>
       </div>
       
-      {/* 输入框 - 固定在容器底部 */}
-      <div className="m-4 p-4 bg-white border border-slate-100 rounded-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+      {/* 输入框 - sticky固定在容器底部 */}
+      <div className="sticky bottom-0 m-4 p-4 bg-white border border-slate-100 rounded-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.03)] flex-shrink-0">
         <div className="flex items-center space-x-3">
           <Input
             value={currentMessage}
