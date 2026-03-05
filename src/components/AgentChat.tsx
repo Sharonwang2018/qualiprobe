@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -9,7 +11,10 @@ import {
   ChevronLeft, 
   Loader2, 
   Search, 
-  Zap
+  Zap,
+  Copy,
+  RefreshCw,
+  Check
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -34,6 +39,13 @@ interface OutlineData {
   }>;
 }
 
+interface SectionInput {
+  title: string;
+  duration: string;
+  questions: string[];
+  notes: string;
+}
+
 interface AgentChatProps {
   outlineData?: OutlineData | null;
   researchTopic?: string;
@@ -45,6 +57,7 @@ interface AgentChatProps {
   onScrollToEvidence?: (chunkId: string) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  onApplySuggestion?: (section: SectionInput) => void;
 }
 
 export default function AgentChat({ 
@@ -56,7 +69,8 @@ export default function AgentChat({
   analysisResult,
   transcriptChunks = [],
   onScrollToEvidence,
-  onToggleCollapse
+  onToggleCollapse,
+  onApplySuggestion
 }: AgentChatProps) {
   const { t } = useLanguage();
   // 对话状态
@@ -74,9 +88,48 @@ export default function AgentChat({
   const scrollToChatBottom = () => {
     setTimeout(() => {
       if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        const el = chatContainerRef.current;
+        el.scrollTo({
+          top: el.scrollHeight,
+          behavior: 'smooth',
+        });
       }
     }, 100);
+  };
+
+  const handleCopyContent = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
+  };
+
+  const handleRegenerateFromLastUser = () => {
+    const lastUserMessage = [...chatMessages].reverse().find((m) => m.type === 'user');
+    if (lastUserMessage) {
+      handleChat(lastUserMessage.content);
+    }
+  };
+
+  const [applyingMessageId, setApplyingMessageId] = useState<string | null>(null);
+  const handleApplySuggestion = async (message: ChatMessage) => {
+    if (!onApplySuggestion || !outlineData) return;
+    setApplyingMessageId(message.id);
+    try {
+      const res = await fetch('/api/extract-section', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suggestion: message.content }),
+      });
+      if (!res.ok) throw new Error('Extract failed');
+      const section = await res.json();
+      onApplySuggestion(section);
+    } catch (e) {
+      console.error('Apply suggestion failed:', e);
+    } finally {
+      setApplyingMessageId(null);
+    }
   };
 
   // 精准原文溯源函数
@@ -129,169 +182,73 @@ export default function AgentChat({
     setIsAgentThinking(true);
 
     try {
-      // 模拟AI回复
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       let responseContent = '';
-      let evidence: { chunkId: string; text: string } | undefined;
-      
-      // 上下文自动喂养 - 静默背景注入
-      const contextPrompt = `
+
+      const hasOutlineContext = !!outlineData?.sections?.length;
+      const hasResearchContext = !!researchTopic.trim() || !!researchPurpose.trim() || !!targetAudience.trim();
+
+      // 如果缺少上下文，先追问澄清，避免"牛头不对马嘴"
+      if (activeWorkbench === 'outline' && !hasOutlineContext && !hasResearchContext) {
+        responseContent = `为了更精准回答，我需要一点背景信息：\n\n1) 你的研究主题是什么？\n2) 目标受众是谁？\n3) 你想解决的核心问题/研究目的是什么？`;
+      } else {
+        // 上下文自动喂养 - 静默背景注入
+        const contextPrompt = `
 【当前上下文】
 - [当前页面模式]: ${activeWorkbench === 'outline' ? t('header.outlineDesign') : t('header.interviewAnalysis')}
 - [研究主题]: ${researchTopic || '未填写'}
+- [目标受众]: ${targetAudience || '未填写'}
 - [核心目标]: ${researchPurpose || '未填写'}
 - [当前大纲快照]: ${outlineData ? JSON.stringify(outlineData.sections?.slice(0, 2)) : '无大纲数据'}
 
-【用户问题】: ${currentMessage}
+【用户问题】: ${messageText}
 
-请基于以上上下文，以资深定性研究专家的身份回答。
+请基于以上上下文，以资深定性研究专家的身份回答。如果信息不足，请先提出 1-3 个澄清问题再给建议。
 `;
       
-      // 检查是否需要进入【精准原文溯源模式】
-      const needsOriginalText = currentMessage.includes('原话') || 
-                              currentMessage.includes('原文') || 
-                              currentMessage.includes('怎么说') || 
-                              currentMessage.includes('具体说了') || 
-                              currentMessage.includes('查看原话') || 
-                              currentMessage.includes('提供证据') || 
-                              currentMessage.includes('证据') || 
-                              currentMessage.includes('结论来源') || 
-                              currentMessage.includes('来源') ||
-                              currentMessage.includes('谁说的');
-      
-      if (activeWorkbench === 'analysis' && analysisResult && needsOriginalText) {
-        // 进入【精准原文溯源模式】 - 仅在分析页面且有笔录时
-        setThinkingStep('🔍 正在扫描笔录切片以获取证据...');
-        await new Promise(resolve => setTimeout(resolve, 1200));
-        
-        const keyword = currentMessage.replace(/原话|原文|怎么说|具体说了|查看原话|提供证据|证据|结论来源|来源|谁说的|关于|的|了|吗|？|。|！/g, '').trim();
-        
-        evidence = searchOriginalText(keyword);
-        
-        if (evidence) {
-          // 强制引用格式 - 严禁概括
-          responseContent = `『${evidence.text}』`;
-        } else {
-          // 诚实回答未找到
-          responseContent = `在该段落中未发现关于"${keyword}"的具体原话。
+        // 调用真实的聊天 API
+        try {
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              context: contextPrompt,
+              message: messageText,
+              mode: 'expert'
+            }),
+          });
 
-建议尝试：
-• 使用不同的关键词
-• 检查相关段落
-• 或者告诉我您想了解的具体方面`;
-        }
-      } else {
-        // 洞察引擎智能关联模式
-        const message = currentMessage.toLowerCase();
-        
-        // 检查是否在询问目标受众相关的问题
-        if (message.includes('目标受众') || message.includes('受众') || message.includes('用户') || message.includes('选对')) {
-          responseContent = `基于你当前的研究主题"${researchTopic || '未设置'}"和研究目的"${researchPurpose || '未设置'}"，我来分析一下目标受众的选择：
-
-**当前目标受众：**${targetAudience || '未设置'}
-
-**分析建议：**
-1. 如果你的研究涉及${researchTopic || '产品'}的使用体验，${targetAudience || '目标受众'}是一个很好的起点
-2. 建议进一步细分：可以考虑年龄层、使用频率、专业背景等维度
-3. 如果${researchPurpose || '研究目的'}偏向深度挖掘，建议选择有3-6个月使用经验的用户
-
-你觉得这个分析如何？需要我帮你优化受众定义吗？`;
-        }
-        // 检查是否在询问研究主题相关的问题
-        else if (message.includes('主题') || message.includes('研究') || message.includes('方向')) {
-          responseContent = `关于你的研究主题"${researchTopic || '未设置'}"，我有一些建议：
-
-**主题分析：**
-- 当前主题聚焦明确，有利于深度访谈
-- 建议从以下角度深化：使用场景、痛点体验、改进期望
-
-**优化建议：**
-1. 可以考虑加入竞品对比维度
-2. 如果是新产品研究，建议增加用户动机探索
-3. 考虑不同用户群体的差异化需求
-
-你想从哪个角度深入探讨？`;
-        }
-        // 检查是否在询问研究目的相关的问题
-        else if (message.includes('目的') || message.includes('目标') || message.includes('想要')) {
-          responseContent = `关于你的研究目的"${researchPurpose || '未设置'}"，我来帮你梳理：
-
-**目的解析：**
-- 目标清晰，有利于设计针对性问题
-- 建议量化具体指标：如用户满意度提升X%、转化率提升Y%等
-
-**执行建议：**
-1. 可以拆分为3-4个具体的研究假设
-2. 建议优先级排序：核心需求 > 次要需求 > 边缘需求
-3. 考虑时间限制，聚焦最重要的2-3个目标
-
-需要我帮你优化研究假设吗？`;
-        }
-        // 智能大纲优化建议
-        else if (activeWorkbench === 'outline' && outlineData) {
-          responseContent = `基于你当前的"${researchTopic || '研究主题'}"访谈大纲，我建议：
-
-**大纲优化建议：**
-1. **开场环节**：建议增加破冰问题，让受访者更放松
-2. **主讨论环节**：可以加入具体的使用场景询问
-3. **收尾环节**：建议补充"还有什么想补充的吗"
-
-**问题质量提升：**
-- 多用"能否描述一下..."替代"是否..."
-- 增加"最满意/最不满意"的对比问题
-- 考虑加入"如果有魔法棒，你最想改变什么"
-
-你希望我帮你优化哪个环节？`;
-        }
-        // 分析工作台的专业建议
-        else if (activeWorkbench === 'analysis') {
-          if (analysisResult) {
-            responseContent = `基于你的"${researchTopic || '研究主题'}"分析结果，我提供以下洞察：
-
-**核心发现验证：**
-- 你的研究目的"${researchPurpose || '未设置'}"在分析中得到了很好的回应
-- 建议重点关注：${analysisResult.coreInsights?.slice(0, 100) || '核心洞察内容'}...
-
-**下一步行动：**
-1. 可以基于这些洞察优化产品策略
-2. 建议进行更大规模的用户验证
-3. 考虑制定具体的改进时间表
-
-需要我帮你制定详细的行动计划吗？`;
+          if (response.ok) {
+            const data = await response.json();
+            if (!data.error) {
+              responseContent = data.answer;
+            } else {
+              throw new Error(data.error);
+            }
           } else {
-            responseContent = `作为你的洞察引擎，我已准备好分析你的访谈内容：
-
-**当前状态：**
-- 研究主题：${researchTopic || '未设置'}
-- 目标受众：${targetAudience || '未设置'}
-- 研究目的：${researchPurpose || '未设置'}
-
-**分析准备：**
-请上传访谈笔录，我将为你提供：
-1. 深度内容分析
-2. 核心洞察提取
-3. 行动建议制定
-
-你的笔录准备好了吗？`;
+            throw new Error(`API request failed: ${response.status}`);
           }
-        }
-        // 默认智能回复
-        else {
-          responseContent = `作为QualiProbe洞察引擎，我已读取你的研究信息：
+        } catch (error) {
+          console.error('Chat API error:', error);
+          // 降级到本地启发式回复
+          const message = messageText.toLowerCase();
+          const outlineHint = outlineData?.sections?.length
+            ? `\n\n（我当前看到的大纲前两段是：${outlineData.sections
+                .slice(0, 2)
+                .map((s) => s.title)
+                .join(' / ')}）`
+            : '';
 
-**当前项目：**
-- 主题：${researchTopic || '未设置'}
-- 受众：${targetAudience || '未设置'}
-- 目的：${researchPurpose || '未设置'}
-
-**我可以帮你：**
-• {t('header.outlineDesign')}
-• 深度分析访谈内容
-• 提供专业研究建议
-• 提取精准原文证据
-
-请告诉我你具体需要哪方面的帮助？`;
+          if (message.includes('怎么问') || message.includes('提问') || message.includes('问题') || message.includes('追问')) {
+            responseContent = `我建议你把问题写成"具体经历复盘 + 追问梯子"的结构：\n\n1) 先让对方回忆最近一次：\n- "你上一次……当时发生了什么？"\n2) 再问决策依据：\n- "你当时为什么这样选？"\n3) 再挖感受与细节：\n- "哪一步让你觉得顺/不顺？能举个细节吗？"\n4) 再做对比与例外：\n- "如果换一种情况（赶时间/排队/夜间），你会怎么做？"\n\n你把你想优化的那一条问题贴出来，我可以直接给你 3-5 个更好的版本。${outlineHint}`;
+          } else if (message.includes('大纲') || message.includes('结构') || message.includes('逻辑')) {
+            responseContent = `我建议你检查大纲是否具备：\n\n1) **开场**：背景+破冰（让受访者进入状态）\n2) **核心链路**：按时间线/任务/阶段推进（每段都有行为-决策-情绪-触点-例外）\n3) **取舍**：与替代方案/竞品的对比（为什么选/为什么不选）\n4) **收尾**：总结验证（最重要的1-2点）+补充\n\n如果你告诉我你选的研究类型（旅程/竞品/体验诊断等）和你最关心的输出，我可以帮你把段落顺序和每段时长重新分配。${outlineHint}`;
+          } else if (message.includes('受众') || message.includes('用户') || message.includes('样本') || message.includes('招募')) {
+            responseContent = `你现在的目标受众是：${targetAudience || '（未填写）'}\n\n为了让样本更"对"，我建议按下面3个维度描述清楚：\n1) **行为门槛**：最近一次/频率（如过去2周内做过、每月2次以上）\n2) **经验层级**：新手 vs 老手（是否会显著影响体验与决策）\n3) **关键差异**：场景差异（通勤/长途/夜间/带娃/公司车队等）\n\n你想要的是更偏"代表性"还是更偏"极端案例/问题诊断"？我可以按你的目标给一版招募条件。${outlineHint}`;
+          } else {
+            responseContent = `我可以围绕你当前项目（${researchTopic || '未填写研究主题'}）帮你做三件事：\n\n1) 优化大纲结构和每段时长\n2) 把某一段的问题改得更口语、更可回答，并补足追问\n3) 帮你定义更准确的目标受众与招募条件\n\n你现在最想我先帮哪一个？把你的问题再具体一点（例如"想优化第2环节的问题"）。${outlineHint}`;
+          }
         }
       }
       
@@ -299,8 +256,7 @@ export default function AgentChat({
         id: (Date.now() + 1).toString(),
         type: 'assistant',
         content: responseContent,
-        timestamp: new Date(),
-        evidence
+        timestamp: new Date()
       };
 
       setChatMessages((prev: ChatMessage[]) => [...prev, assistantMessage]);
@@ -330,7 +286,7 @@ export default function AgentChat({
       
       {/* 聊天区域 - 吃掉所有剩余空间 */}
       <div className="flex-1 overflow-y-auto relative">
-        <div className="p-4">
+        <div className="p-4" ref={chatContainerRef}>
           {/* 对话消息列表 */}
           <div className="space-y-3">
             {chatMessages.map((message) => (
@@ -346,11 +302,67 @@ export default function AgentChat({
                   </div>
                 ) : (
                   <div className="max-w-[80%]">
-                    <div className="flex items-start">
+                    <div className="flex items-start group relative">
                       <Brain className="w-4 h-4 text-slate-500 mr-2 mt-0.5 flex-shrink-0" />
-                      <p className="text-slate-700 text-sm leading-relaxed bg-white border border-slate-100 shadow-sm px-4 py-2 rounded-2xl rounded-bl-none">
-                        {message.content}
-                        {/* 引用联动 - 可点击的原话 */}
+                      <div className="text-slate-700 text-sm leading-relaxed bg-slate-50/50 border border-slate-100 shadow-sm px-4 py-3 rounded-2xl rounded-bl-none w-full">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            h2: ({ children }) => (
+                              <h2 className="mt-2 mb-3 text-sm font-semibold text-slate-900">
+                                {children}
+                              </h2>
+                            ),
+                            h3: ({ children }) => (
+                              <h3 className="mt-3 mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                                {children}
+                              </h3>
+                            ),
+                            p: ({ children }) => (
+                              <p className="mb-4 last:mb-0 text-sm leading-relaxed text-slate-700">
+                                {children}
+                              </p>
+                            ),
+                            strong: ({ children }) => (
+                              <strong className="font-semibold text-slate-900">
+                                {children}
+                              </strong>
+                            ),
+                            ul: ({ children }) => (
+                              <ul className="mt-1 space-y-1.5">
+                                {children}
+                              </ul>
+                            ),
+                            ol: ({ children }) => (
+                              <ol className="mt-1 space-y-1.5">
+                                {children}
+                              </ol>
+                            ),
+                            li: ({ children, ordered, index }: any) => {
+                              const isOrdered = !!ordered;
+                              return (
+                                <li className="flex items-start py-1.5">
+                                  {isOrdered ? (
+                                    <span className="mr-2 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700">
+                                      {typeof index === 'number' ? index + 1 : ''}
+                                    </span>
+                                  ) : (
+                                    <span className="mr-2 mt-0.5 text-[13px] leading-none text-indigo-500 flex-shrink-0">
+                                      →
+                                    </span>
+                                  )}
+                                  <span className="flex-1 text-sm leading-relaxed text-slate-700">
+                                    {children}
+                                  </span>
+                                </li>
+                              );
+                            },
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+
+                        {/* 引用联动 - 可点击的原文 */}
                         {message.evidence && onScrollToEvidence && (
                           <button
                             onClick={() => onScrollToEvidence(message.evidence!.chunkId)}
@@ -360,7 +372,44 @@ export default function AgentChat({
                             查看原文
                           </button>
                         )}
-                      </p>
+
+                        {/* 操作按钮：采纳 / 复制 / 重新生成 */}
+                        {message.content.length > 120 && (
+                          <div className="absolute -bottom-1 right-2 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1.5 text-slate-400">
+                            {onApplySuggestion && outlineData?.sections && (
+                              <button
+                                type="button"
+                                onClick={() => handleApplySuggestion(message)}
+                                disabled={!!applyingMessageId}
+                                className="p-1 rounded-full hover:bg-green-50 hover:text-green-600 disabled:opacity-50"
+                                title={t('agent.applySuggestion')}
+                              >
+                                {applyingMessageId === message.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Check className="w-3 h-3" />
+                                )}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleCopyContent(message.content)}
+                              className="p-1 rounded-full hover:bg-slate-100 hover:text-slate-700"
+                              aria-label="Copy reply"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRegenerateFromLastUser}
+                              className="p-1 rounded-full hover:bg-slate-100 hover:text-slate-700"
+                              aria-label="Regenerate reply"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -370,10 +419,17 @@ export default function AgentChat({
           
           {/* Agent 思考状态 */}
           {isAgentThinking && (
-            <div className="flex items-center justify-center py-3">
-              <div className="flex items-center space-x-2 text-blue-600 text-sm">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span>{thinkingStep || '正在分析...'}</span>
+            <div className="mt-3 flex justify-start">
+              <div className="flex items-start">
+                <Brain className="w-4 h-4 text-slate-400 mr-2 mt-0.5 flex-shrink-0" />
+                <div className="relative overflow-hidden rounded-2xl rounded-bl-none bg-gradient-to-r from-slate-50 via-indigo-50/70 to-slate-50 px-4 py-3 border border-slate-100 shadow-sm w-full max-w-[80%]">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-[shimmer_1.8s_infinite]" />
+                  <div className="relative space-y-2">
+                    <div className="h-3 w-40 bg-slate-200/70 rounded-full" />
+                    <div className="h-3 w-56 bg-slate-200/60 rounded-full" />
+                    <div className="h-3 w-32 bg-slate-200/50 rounded-full" />
+                  </div>
+                </div>
               </div>
             </div>
           )}

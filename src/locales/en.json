@@ -20,8 +20,22 @@
   },
   "header": {
     "selectLanguage": "Select Language",
-    "outlineDesign": "Outline Design",
+    "outlineDesign": "Discussion Guide Design",
     "interviewAnalysis": "Interview Analysis"
+  },
+  "studyType": {
+    "label": "Study Type",
+    "placeholder": "Auto-detect",
+    "helper": "Default is auto-detect. Manually choose if detection is inaccurate.",
+    "auto": "Auto",
+    "journey": "Journey / Touchpoints / Flow",
+    "competitive": "Competitive / Choice / Switching",
+    "experience": "Experience Diagnostic",
+    "persona": "Persona / Segmentation",
+    "concept": "Concept / Proposition Test",
+    "pricing": "Pricing / Value",
+    "brand": "Brand / Communication",
+    "ux": "UX / Usability"
   },
   "outline": {
     "researchTopic": "Research Topic",
@@ -49,6 +63,24 @@
     "saveChanges": "Save Changes",
     "cancel": "Cancel",
     "interviewOutline": "Interview Outline",
+    "projectInfo": "Project Basic Information",
+    "notSpecified": "Not specified",
+    "disclaimer": "Disclaimer & Privacy Policy",
+    "disclaimerText": "This interview outline is for research reference only. All personal information collected during the interview will be strictly confidential and used only for research purposes. Interview content will be analyzed and reported after anonymization.",
+    "warmUpScript": "Warm-up Script",
+    "welcome": "Welcome & Thanks: Thank you very much for taking your valuable time to participate in this interview.",
+    "selfIntro": "Self-introduction: I am [Name], the interviewer today from [Company Name].",
+    "purposeExplanation": "Purpose Explanation: We hope to understand your real experience and thoughts through today's conversation.",
+    "confidentialityCommitment": "Confidentiality Commitment: All your responses will be strictly confidential and used only for research purposes. No personal information will appear in the report.",
+    "recordingNotice": "Recording Notice: To ensure accuracy, I will record the interview. Do you agree?",
+    "openingQuestion": "Opening Question: Let's start with your initial experience with the relevant topic.",
+    "detailedOutline": "Detailed Interview Outline",
+    "sectionTitle": "Section {{number}}: {{title}}",
+    "researchQuestions": "Research Questions",
+    "notesExplanation": "Notes Explanation",
+    "conclusion": "Interview Conclusion",
+    "conclusionText": "Thank you for your time and sharing. Your perspectives are very valuable to our research. If you have any other thoughts, feel free to add them. Wish you a happy life!",
+    "documentEnd": "End of Interview Guide",
     "researchPurposePlaceholder": "e.g., Understand user habits and pain points with the product",
     "targetAudiencePlaceholder": "e.g., Young professionals",
     "researchTopicPlaceholder": "e.g., User experience research"
@@ -82,7 +114,8 @@
     "noHistory": "No history records",
     "searchPlaceholder": "Search history records...",
     "noMatches": "No matching records found",
-    "sectionsCount": "{{count}} sections"
+    "sectionsCount": "{{count}} sections",
+    "applySuggestion": "Apply suggestion to outline"
   },
   "interviewTypes": {
     "idi": "In-depth Interview (IDI)",

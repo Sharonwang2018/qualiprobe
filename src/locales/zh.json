@@ -23,6 +23,20 @@
     "outlineDesign": "大纲设计",
     "interviewAnalysis": "访谈分析"
   },
+  "studyType": {
+    "label": "研究类型",
+    "placeholder": "自动识别",
+    "helper": "默认自动识别；如识别不准可手动选择",
+    "auto": "自动",
+    "journey": "旅程/触点/流程",
+    "competitive": "竞品/选择/切换",
+    "experience": "体验诊断/满意度",
+    "persona": "画像/细分",
+    "concept": "概念/方案测试",
+    "pricing": "定价/价值感",
+    "brand": "品牌/传播",
+    "ux": "可用性/任务"
+  },
   "outline": {
     "researchTopic": "研究主题",
     "targetAudience": "目标受众", 
@@ -49,6 +63,24 @@
     "saveChanges": "保存修改",
     "cancel": "取消",
     "interviewOutline": "访谈大纲",
+    "projectInfo": "项目基本信息",
+    "notSpecified": "未填写",
+    "disclaimer": "免责声明与隐私条款",
+    "disclaimerText": "本访谈大纲仅供研究参考使用。访谈中收集的所有个人信息将严格保密，仅用于研究目的。访谈内容将在匿名化后进行分析和报告。",
+    "warmUpScript": "暖场话术",
+    "welcome": "欢迎与感谢：非常感谢您抽出宝贵时间参与本次访谈。",
+    "selfIntro": "自我介绍：我是今天的访谈员[姓名]，来自[公司名称]。",
+    "purposeExplanation": "研究目的说明：我们希望通过今天的交流，深入了解您的真实体验和想法。",
+    "confidentialityCommitment": "保密承诺：您的所有回答都将严格保密，仅用于研究目的，报告中不会出现您的个人信息。",
+    "recordingNotice": "录音说明：为了确保信息准确性，我将对访谈进行录音，您是否同意？",
+    "openingQuestion": "开场提问：让我们从您最初接触相关话题的经历开始聊起。",
+    "detailedOutline": "详细访谈大纲",
+    "sectionTitle": "环节 {{number}}: {{title}}",
+    "researchQuestions": "研究问题",
+    "notesExplanation": "备注说明",
+    "conclusion": "访谈结束",
+    "conclusionText": "感谢您的时间分享，您的观点对我们的研究非常有价值。如果还有其他想法，欢迎随时补充。祝您生活愉快！",
+    "documentEnd": "访谈指南结束",
     "researchPurposePlaceholder": "例如：了解用户对产品的使用习惯和痛点",
     "targetAudiencePlaceholder": "例如：年轻白领",
     "researchTopicPlaceholder": "例如：用户体验研究"
@@ -82,7 +114,8 @@
     "noHistory": "暂无历史记录",
     "searchPlaceholder": "搜索历史记录...",
     "noMatches": "未找到匹配的记录",
-    "sectionsCount": "{{count}} 个环节"
+    "sectionsCount": "{{count}} 个环节",
+    "applySuggestion": "采纳建议并同步到大纲"
   },
   "interviewTypes": {
     "idi": "深度访谈 (IDI)",

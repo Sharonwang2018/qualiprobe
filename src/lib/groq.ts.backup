@@ -1,8 +1,5 @@
 import Groq from "groq-sdk";
 
-// FGD 互动任务类型（用于 UI 图标）
-export type FGDInteractionType = 'draw' | 'debate' | 'vote' | 'experiment' | 'values' | 'mapping' | 'conflict' | 'discuss';
-
 // 大纲数据接口
 export interface OutlineData {
   project_title: string;
@@ -12,9 +9,6 @@ export interface OutlineData {
     duration: string;
     questions: string[];
     notes: string;
-    interactionType?: FGDInteractionType;
-    discussionTask?: string; // [讨论任务] 任务驱动式环节
-    probingQuestion?: string; // [深度追问] 挖掘底层动机
   }>;
 }
 
@@ -290,94 +284,153 @@ class GroqService {
     return 'experience';
   }
 
-  private buildSystemGuide(studyType: Exclude<StudyType, 'auto'>): string {
+  private buildSystemGuide(studyType: Exclude<StudyType, 'auto'>, interviewType: 'IDI' | 'FGD'): string {
+    const isFGD = interviewType === 'FGD';
     const common = `
-你是一名顶尖市场研究咨询公司（如 Ipsos、Kantar、GfK、尼尔森）的定性研究总监，拥有 15 年以上定性研究及深度分析经验。你擅长设计能挖到「真实动机与行为」的 Discussion Guide，而非表面问答。
+你是一名来自顶尖市场研究咨询公司（如 Ipsos, Kantar）的定性研究总监。你的任务是根据给定的【研究课题】，设计一份专业的访谈讨论大纲（Discussion Guide）。
 
-### 角色与标准 (ROLE)
-- 产出的大纲必须达到可交付客户/项目组的水准：可直接用于培训主持人、执行现场、支撑报告洞察。
-- 每个环节须明确：研究目的、观察点、追问梯子、主持人注意事项。
-- 严禁产出泛泛的、新手级的问题列表。
-
-### 拒绝平庸问法 (FORBIDDEN)
-- 严禁：“你觉得如何”“优缺点是什么”“满意吗”“有什么建议”等宽泛、闭合式问法。
-- 每个环节必须以**具体任务**、**场景投射**或**时间线复盘**驱动，而非泛泛征询意见。
-
-### 绝对要求 (CRITICAL RULES)
-- 围绕研究课题与真实生活场景展开；问题须口语化、可回答、基于回忆具体经历（优先问“上一次/最近一次/某一次具体发生了什么”）。
-- 每个环节必须包含 **probingQuestion**：2-3 条可执行的追问句，形成追问梯子（Laddering），逐层挖动机：
-  1) 第一层：落到“当时发生了什么”“能举个具体例子/那个瞬间”；
-  2) 第二层：落到“你当时第一反应是什么”“那一刻对你意味着什么”；
-  3) 第三层：落到“这具体改变了你后续的什么选择/行为/判断”。
-- **notes** 须包含：① 研究目的 ② 观察点（如：情绪转折、犹豫点、语言隐喻）③ 2-3 条具体追问话术（禁止“为什么”“还有呢”式空泛追问）。
+### ⚠️ 绝对要求 (CRITICAL RULES) ⚠️
+- 必须围绕研究课题与真实生活场景展开，不要套用固定模板。
+- 问题必须口语化、可回答、基于回忆具体经历（优先问"上一次/最近一次/某一次具体发生了什么"）。
+- 避免抽象词：不要出现"画像/维度/痛点/满意度/NPS/功能改进"等术语；如需衡量，用"为什么这么想/具体哪里让你觉得好或不舒服/当时你怎么判断"等表达。
+- 每个大问题后给出 2-4 条追问（probe），用于深挖行为、动机、情绪、决策依据、触点、例外场景。
 - 输出必须严格为 JSON（json_object），不要添加解释性文字。
+${isFGD ? `
+### 🧑‍🤝‍🧑 FGD 焦点小组专属要求
+- **提问风格强制转换**：禁用所有"您个人觉得"的开头，强制使用群体导向提问：
+  - "大家看到这个的第一反应是？"
+  - "有没有人持有完全相反的意见？"
+  - "请大家投票选出最触动你的点"
+  - "在座各位怎么看？"
+  - "谁和刚才那位想法不一样？"
+  - "有没有人想补充或反驳？"
+- **互动任务要求**：必须包含具体的互动任务，使用对应图标标识
+` : ''}
 `;
+
+    const fgdInteractiveTasks: Partial<Record<Exclude<StudyType, 'auto'>, string>> = {
+      journey: `
+### 🎨 FGD 旅程研究专属互动任务
+- **集体回忆绘图**：提供大张白纸，让组员分组绘制完整的用户旅程图，包括触点、情绪曲线、决策点。
+- **触点投票**：让组员用贴纸在旅程图上标记"最满意/最不满意"的触点，并解释原因。
+- **例外场景讨论**：针对旅程中的关键环节，讨论"赶时间/夜间/带娃"等场景下的差异。
+`,
+      competitive: `
+### ⚔️ FGD 竞品研究专属互动任务
+- **模拟辩论**：将组员分为不同阵营，代表不同品牌/方案的支持者，进行结构化辩论。
+- **选择理由排序**：让组员对选择因素进行排序并讨论差异，找出"deal-breaker"。
+- **阵营切换讨论**：让组员讨论什么情况下会从当前选择切换到竞品。
+`,
+      concept: `
+### 💡 FGD 概念测试专属互动任务
+- **方案共创**：提供概念原型，让组员分组进行"加减法"优化，提出改进建议。
+- **使用场景匹配**：让组员将概念卡片与使用场景进行匹配，解释匹配逻辑。
+- **担忧与期待投票**：匿名写下对概念的担忧和期待，然后集体讨论。
+`,
+      pricing: `
+### 💰 FGD 定价研究专属互动任务
+- **预算分配博弈**：给组员虚拟预算，在不同功能/服务间进行分配，并解释决策逻辑。
+- **价值锚点讨论**：让组员讨论什么因素决定了他们心中的"合理价格"。
+- **付费门槛投票**：对不同的付费场景进行投票，找出触发付费的关键因素。
+`,
+      experience: `
+### 🩺 FGD 体验诊断专属互动任务
+- **情绪曲线绘制**：让组员绘制体验过程中的情绪曲线，标注关键转折点。
+- **关键时刻投票**：让组员投票选出体验中的"关键时刻"并深入讨论。
+- **改进方案共创**：针对体验痛点，让组员分组提出改进方案。
+`,
+      persona: `
+### 👤 FGD 画像研究专属互动任务
+- **人物卡片匹配**：提供不同人物卡片，让组员匹配自己最像的并解释差异。
+- **场景角色扮演**：让组员在不同场景下扮演典型用户，展示行为差异。
+- **价值排序讨论**：让组员对价值要素进行排序，讨论人群分化原因。
+`,
+      brand: `
+### 📣 FGD 品牌研究专属互动任务
+- **品牌拟人化**：让组员用拟人化方式描述品牌（性格、穿着、说话方式）。
+- **品牌联想词云**：集体生成品牌联想词，讨论共同点和差异点。
+- **信息解码讨论**：展示品牌传播材料，讨论不同人群的理解差异。
+`,
+      ux: `
+### 🧩 FGD 可用性研究专属互动任务
+- **任务流程重排**：让组员重新排列任务步骤，讨论最优流程。
+- **痛点贴图**：在界面上用贴纸标记痛点位置，集体讨论解决方案。
+- **心智模型对比**：让组员画出"以为的流程"vs"实际的流程"，讨论差异。
+`
+    };
+
+    const fgdTaskBlock = isFGD ? (fgdInteractiveTasks[studyType] || '') : '';
 
     if (studyType === 'journey') {
       return `${common}
-### 旅程研究结构 (Customer Journey) — 定性研究钩子
-- **必须包含“体感地图绘制”**：请组员在白板/纸上画出从触发到使用后的旅程图，标出关键决策点、情绪转折、触点。
-- 以阶段组织：触发/准备（Before）→ 现场体验（During）→ 事后回想与复购（After）。
-- 每个阶段覆盖：关键行为、决策点、情绪/顾虑、触点、例外场景。
-`;
+### 🧭 旅程研究结构要求 (Customer Journey)
+- 以"阶段（phase）"组织大纲，至少覆盖：
+  1) 触发/准备（Before）
+  2) 现场体验（During）
+  3) 事后回想与复购（After）
+- 每个阶段必须覆盖：
+  - 关键行为（做了什么）
+  - 决策点（为什么这么选）
+  - 情绪/顾虑（担心什么）
+  - 触点（人/设备/空间/标识/数字触点/支付/会员等）
+  - 例外场景（赶时间、排队、夜间、雨天、带娃、车队等）
+${fgdTaskBlock}`;
     }
 
     if (studyType === 'competitive') {
       return `${common}
-### 竞品/选择研究结构 (Competitive Choice)
-- 强制围绕一次“真实选择/对比/切换”的时间线复盘。
-- 必须挖掘“取舍”与“不可接受项”（deal-breaker），不要问泛泛偏好。
-`;
+### 🥊 竞品/选择/切换研究结构要求 (Competitive Choice)
+- 强制围绕一次"真实选择/对比/切换"的时间线复盘：
+  - 触发需求 → 考虑集（还考虑了谁） → 淘汰路径（为什么被淘汰） → 最终选择（关键证据） → 使用后验证（是否后悔/会不会换）。
+- 必须挖掘"取舍"与"不可接受项"（deal-breaker），不要问泛泛偏好。
+${fgdTaskBlock}`;
     }
 
     if (studyType === 'experience') {
       return `${common}
-### 体验诊断结构 (Experience Diagnostic) — 定性研究钩子
-- **必须包含“红黑榜/找茬挑战”**：如让组员列出“最惊喜的3个瞬间”和“最想吐槽的3个瞬间”，或对触点进行“找茬”式讨论。
-- 以预期→实际体验→关键时刻→原因追溯组织。
-- 把好/不好的感受落到具体触点与细节。
-`;
+### 🩺 体验诊断结构要求 (Experience Diagnostic)
+- 以"预期→实际体验→关键时刻→原因追溯→补救/投诉→复购/流失触发点"组织。
+- 要把好/不好的感受落到具体触点与细节（当时发生了什么）。
+${fgdTaskBlock}`;
     }
 
     if (studyType === 'persona') {
       return `${common}
-### 画像/细分结构 (Persona) — 定性研究钩子
-- **必须包含“品牌拟人化/映射”**：如“如果该品牌是一个人，他穿什么、什么语气、更像管家还是工人？”用拟人化拉开人群差异。
-- 目标不是贴标签，而是找到“动机/场景/取舍”的分化方式。
+### 👤 画像/细分结构要求 (Persona / Segmentation)
+- 目标不是贴标签，而是找到"动机/场景/取舍"的分化方式。
 - 必须包含：生活/工作节奏、触发情境、价值取舍、典型一次经历、语言与隐喻。
-`;
+${fgdTaskBlock}`;
     }
 
     if (studyType === 'concept') {
       return `${common}
-### 概念/方案测试结构 (Concept Test)
-- 先测“理解”再测“价值”再测“可信/风险”。
+### 💡 概念/方案测试结构要求 (Concept Test)
+- 先测"理解"（你理解它是什么、怎么用）再测"价值"（为什么对你有用）再测"可信/风险"（担心什么）。
 - 必须包含：对比现有替代方案、使用场景落地、触发与阻碍。
-`;
+${fgdTaskBlock}`;
     }
 
     if (studyType === 'pricing') {
       return `${common}
-### 定价/价值感结构 (Pricing) — 定性研究钩子
-- **必须包含“心理账单博弈/拍卖”**：如给定总预算，在多个维度间分配；或模拟“愿意为某功能多付多少”的博弈式讨论。
-- 不要直接问“你愿意付多少钱”，挖价值锚点、心理账户、付费触发条件、阻碍条件。
-`;
+### 💰 定价/价值感结构要求 (Pricing / Value)
+- 不要直接问"你愿意付多少钱"，而要挖：价值锚点、心理账户、贵/值的证据、付费触发条件、阻碍条件、套餐取舍。
+${fgdTaskBlock}`;
     }
 
     if (studyType === 'brand') {
       return `${common}
-### 品牌/传播结构 (Brand)
-- 重点是“联想/情绪/角色/可信度/语言解码”，而不是满意度。
+### 📣 品牌/传播结构要求 (Brand / Communication)
+- 重点是"联想/情绪/角色/可信度/语言解码"，而不是满意度。
 - 必须包含：类别角色、品牌联想、信息理解偏差、与生活场景/人群的匹配。
-`;
+${fgdTaskBlock}`;
     }
 
     if (studyType === 'ux') {
       return `${common}
-### 可用性/任务结构 (UX / Usability)
-- 以“任务”组织：目标任务 → 步骤复盘 → 卡点与误解 → 容错与恢复。
-- 必须挖“心智模型”：你以为它会怎么工作。
-`;
+### 🧩 可用性/任务研究结构要求 (UX / Usability)
+- 以"任务"组织：目标任务 → 步骤复盘 → 卡点与误解 → 容错与恢复 → 与其他工具对比。
+- 必须挖"心智模型"：你以为它会怎么工作。
+${fgdTaskBlock}`;
     }
 
     return `${common}`;
@@ -392,17 +445,17 @@ class GroqService {
     const studyType: Exclude<StudyType, 'auto'> = (params.studyType && params.studyType !== 'auto')
       ? params.studyType
       : this.detectStudyType(researchTopic, researchPurpose);
-    const systemPrompt = this.buildSystemGuide(studyType);
+    const systemPrompt = this.buildSystemGuide(studyType, interviewType);
 
     const studyHintsByType: Partial<Record<Exclude<StudyType, 'auto'>, string>> = {
-      journey: `\n- 研究类型提示：这是一个“旅程/流程/触点”研究。请按阶段拆分，确保每段都能串成端到端经历。\n`,
-      competitive: `\n- 研究类型提示：这是一个“竞品/选择/切换”研究。请围绕一次真实选择/切换复盘，输出取舍与证据。\n`,
-      experience: `\n- 研究类型提示：这是一个“体验诊断”研究。请从预期到实际体验复盘关键时刻，并追溯原因到具体触点。\n`,
-      persona: `\n- 研究类型提示：这是一个“画像/细分”研究。请围绕动机、场景、取舍与语言隐喻来分化人群。\n`,
-      concept: `\n- 研究类型提示：这是一个“概念/方案测试”。先测理解，再测价值，再测可信与风险，必须落到具体场景。\n`,
-      pricing: `\n- 研究类型提示：这是一个“定价/价值感”研究。避免直接要价格，聚焦价值锚点、付费门槛与触发条件。\n`,
-      brand: `\n- 研究类型提示：这是一个“品牌/传播”研究。聚焦联想、情绪、角色与信息解码，不要用满意度术语。\n`,
-      ux: `\n- 研究类型提示：这是一个“可用性/任务”研究。按任务步骤复盘，找卡点、误解与心智模型。\n`,
+      journey: `\n- 研究类型提示：这是一个"旅程/流程/触点"研究。请按阶段拆分，确保每段都能串成端到端经历。\n`,
+      competitive: `\n- 研究类型提示：这是一个"竞品/选择/切换"研究。请围绕一次真实选择/切换复盘，输出取舍与证据。\n`,
+      experience: `\n- 研究类型提示：这是一个"体验诊断"研究。请从预期到实际体验复盘关键时刻，并追溯原因到具体触点。\n`,
+      persona: `\n- 研究类型提示：这是一个"画像/细分"研究。请围绕动机、场景、取舍与语言隐喻来分化人群。\n`,
+      concept: `\n- 研究类型提示：这是一个"概念/方案测试"。先测理解，再测价值，再测可信与风险，必须落到具体场景。\n`,
+      pricing: `\n- 研究类型提示：这是一个"定价/价值感"研究。避免直接要价格，聚焦价值锚点、付费门槛与触发条件。\n`,
+      brand: `\n- 研究类型提示：这是一个"品牌/传播"研究。聚焦联想、情绪、角色与信息解码，不要用满意度术语。\n`,
+      ux: `\n- 研究类型提示：这是一个"可用性/任务"研究。按任务步骤复盘，找卡点、误解与心智模型。\n`,
     };
     const studyHints = studyHintsByType[studyType] || '';
 
@@ -418,46 +471,28 @@ class GroqService {
       ux: '可用性/任务',
     };
     const currentStudyLabel = studyTypeLabel[studyType];
-
-    const fgdInteractionByStudyType: Partial<Record<Exclude<StudyType, 'auto'>, { task: string; type: FGDInteractionType }>> = {
-      journey: { task: '体感地图绘制（白板画出旅程图，标决策点与情绪转折）', type: 'mapping' },
-      competitive: { task: '模拟辩论/阵营PK（分两组互驳后互换立场）', type: 'conflict' },
-      concept: { task: '方案共创/加减法（功能卡片：保留/砍掉/新增各选3张）', type: 'discuss' },
-      pricing: { task: '心理账单博弈/拍卖（多维度分配预算，讨论不可妥协前三）', type: 'values' },
-      experience: { task: '红黑榜/找茬挑战（最惊喜3瞬 vs 最想吐槽3瞬）', type: 'conflict' },
-      persona: { task: '价值观光谱/站位（务实 vs 极客两端拉线，站位后讨论）', type: 'values' },
-      brand: { task: '品牌拟人化/映射（如果品牌是人，穿什么、什么语气？）', type: 'mapping' },
-      ux: { task: '任务走查投票（投票“最卡的一步”并讨论第一反应）', type: 'discuss' },
-    };
-    const fgdInteraction = fgdInteractionByStudyType[studyType];
-
+    
+    // FGD 专属时长分配逻辑
+    const durationAllocation = isFGD ? this.generateFGDDurationAllocation(interviewDuration, studyType) : '';
+    
     const fgdBlock = isFGD ? `
 
-### FGD 焦点小组专属要求 (Focus Group Discussion)
-- **当前研究类型为「${currentStudyLabel}」**，大纲内容必须严格按该类型。
-- **环节 2（核心讨论）必须设计“冲突点触发任务”**：价值观光谱、卡片分类、角色扮演等，提问须包含“有没有人有不同意见？”“请试图说服对方”等互动指令。
-- **追问细度强制要求（避免笼统）**：
-  - 严禁单句追问如“为什么？”“还有呢？”“能具体说说吗？”。
-  - 每个主问题/每个环节必须给出 **2-3 条具体追问**，形成追问梯子，逐层深挖：
-    1) 第一层：落到“当时发生了什么”“能举个具体例子/那个瞬间”；
-    2) 第二层：落到“你当时第一反应是什么”“那一刻对你意味着什么”；
-    3) 第三层：落到“这具体改变了你后续的什么选择/行为/判断”。
-  - \`probingQuestion\` 须输出 **2-3 条可执行追问句**，用换行分隔，每条都要具体、可操作，禁止“为什么”式空泛追问。
-- **questions 数组要求**：每个环节的 questions 不少于 3 条，且每条主问题后可在 notes 中注明对应追问；或直接将追问拆成独立 questions 条目。
-- **备注 (notes)**：须包含**主持人干预技巧**（如何处理话多/沉默者、若一边倒如何追问），以及**本环节的 2-3 条具体追问话术**，逐条写出，不要概括。
-- **当前研究类型专属任务**：${fgdInteraction ? `【${fgdInteraction.task}】请在环节 2 落实，并设 \`interactionType\` 为 \`"${fgdInteraction.type}"\`。` : ''}
-- **环节时长**：核心互动环节（环节 2）须占 60% 以上。
-` : `
-
-### IDI 深度访谈要求 (In-Depth Interview)
-- **每个环节都必须包含 probingQuestion**：2-3 条可执行追问句，用换行分隔，形成追问梯子。严禁单句“为什么”“还有呢”。
-- **questions**：每环节不少于 3 条主问题，须口语化、基于具体经历。
-- **notes**：须含研究目的、观察点（情绪转折、犹豫点、语言隐喻）、2-3 条具体追问话术。
-`;
-
-    const outputLanguage = params.outputLanguage || '中文';
-    const languageDirective = (() => {
-      if (outputLanguage === '英文') {
+### 🧑‍🤝‍🧑 FGD 焦点小组专属要求 (Focus Group Discussion)
+- **FGD 与 IDI 使用相同的 8 类定性研究**（旅程/竞品/体验诊断/画像/概念/定价/品牌/UX）。**当前研究类型为「${currentStudyLabel}」**，大纲的**内容与逻辑必须严格按该类型**（如画像则聚焦动机、场景、取舍、语言隐喻；定价则聚焦价值锚点与付费门槛），**不得因 FGD 而改写成其他类型**（例如：用户选的是画像/用户画像，则不要写成价格或满意度研究）。
+- **FGD 仅在此基础上叠加"群体讨论"的环节与话术**：问题从"你觉得"改为"大家觉得""在座各位怎么看""有没有人有不同意见""谁和刚才那位想法不一样"。
+- **必须包含的环节**：
+  1) **暖场与破冰（约 15 分钟）**：设计让组员互相认识的互动（如每人一句话介绍自己与话题的关系，或两两配对代对方发言）。
+  2) **群体观点碰撞**：在研究问题中加入 **2–3 个"讨论触发点"**（如对 A/B/C 方案投票并陈述理由，或"不同意刚才观点的朋友举手说说理由"）。
+  3) **共识与差异总结**：结尾增加讨论环节，归纳"大家共同点"与"分歧点"，探索需求公约数。
+- **禁止诱导性满意度问法**：严禁使用"是不是太好/太差/太贵/太便宜"这类封闭式、带强烈立场的问法；优先用场景投射式、比喻式、联想式提问（例如："如果用一个形容词/画面来形容你对售后的感觉，会是什么？"），把"好不好"拆解为"在什么情境下、发生了什么、对你意味着什么"。
+- **为每个关键研究点设计互动触发任务**：不仅给出口头问题，还要为重要研究点至少设计一个具体的"讨论任务"（例如：让组员在白板上为不同触点贴笑脸或哭脸，再围绕贴纸位置展开讨论），避免全场只是轮流发言。
+- **强化追问而非打分**：定性研究不需要"几分"，而是需要"为什么"。每个主问题后必须在 notes 中给出 1–3 条追问路径（例如："当时第一反应是什么？""这个细节具体改变了你后续的选择/忠诚度吗？"），引导主持人深挖原因而不是停在表态。
+- **突出群体冲突点**：在观点碰撞与总结环节，鼓励主持人刻意点出不同意见并抛给全组讨论（如："A 觉得售后很贴心，B 觉得被打扰了，其他人更靠近哪一边？为什么？"），帮助识别真正有洞察力的分歧。
+- **允许使用品牌拟人化等高级比喻**：在适合的研究类型（如品牌、体验、画像）下，可以引导组员用拟人化方式描述品牌/服务（例如："如果小米售后是一位人，他会穿什么样的衣服、说话语气如何？更像是随叫随到的管家，还是机械执行任务的工人？"），以拉开不同品牌/体验之间的感官差异。
+- **备注说明 (notes)**：每个环节的 notes 须包含清晰的研究目的、观察点，以及至少一条以"技巧"开头的主持人操作建议（如：观察边缘化组员并邀请发言；若一边倒可追问"有没有人持不同看法"）。
+- **时长建议**：FGD 建议 90–120 分钟；若用户总时长不足 90 分钟，可在 notes 中提醒"FGD 建议 90–120 分钟效果更佳"。
+${durationAllocation}
+` : '';
         return `\n### 🌐 Output Language Requirement\n- All content in the JSON values must be written in English.\n- Do not include any Chinese characters.\n`;
       }
       if (outputLanguage === '日文') {
@@ -492,16 +527,15 @@ ${fgdBlock}
       "id": 1,
       "title": "环节标题",
       "duration": "XX分钟",
-      "questions": ["具体问题1", "具体问题2", "具体问题3"],
-      "notes": "${isFGD ? '研究目的、观察点。技巧：过度发言者—点名请他人补充；沉默者—点名邀请“刚才没发言的朋友怎么看”；若一边倒—追问“能举个让你差点动摇的瞬间吗？”。追问话术须逐条写出。' : '研究目的、观察点（如情绪转折、犹豫点、语言隐喻）、2-3条具体追问话术（禁止“为什么”“还有呢”式空泛追问）。'}",
-      "probingQuestion": "能举个当时的具体例子/那个瞬间发生了什么？\\n那一刻你的第一反应是什么？对你意味着什么？\\n这具体改变了你后续的什么选择或行为？"${isFGD && fgdInteraction ? `,
-      "interactionType": "${fgdInteraction.type}",
-      "discussionTask": "${fgdInteraction.task}"` : ''}
+      "questions": [
+        "具体问题1",
+        "具体问题2",
+        "具体问题3"
+      ],
+      "notes": "${isFGD ? '该环节的研究目的、观察点与追问提示。💡 技巧：主持人操作建议（例如：观察边缘化组员并邀请发言）。' : '该环节的研究目的、观察点与追问提示（probe）'}"
     }
   ]
-}
-
-说明：每个环节必须包含 probingQuestion（2-3条追问，用换行分隔），严禁单句“为什么”。notes 须含研究目的、观察点、追问话术。${isFGD ? '环节 2 须设 interactionType、discussionTask。' : ''}`;
+}`;
 
     return `${systemPrompt}${languageDirective}\n\n${userPrompt}`;
   }
@@ -536,7 +570,39 @@ ${fgdBlock}
     return cleanedTopic || researchTopic;
   }
 
-  private generateMockOutline(params: GenerateParams): OutlineData {
+  private generateFGDDurationAllocation(totalDuration: string, studyType: Exclude<StudyType, 'auto'>): string {
+    const duration = parseInt(totalDuration);
+    if (isNaN(duration) || duration < 30) return '';
+
+    // FGD 核心互动环节（环节2）占据总时长的 60% 以上
+    const coreInteractionMinutes = Math.max(Math.floor(duration * 0.6), 45);
+    const remainingMinutes = duration - coreInteractionMinutes;
+    
+    // 暖场与总结各占剩余时间的一半
+    const warmupMinutes = Math.floor(remainingMinutes * 0.4);
+    const summaryMinutes = Math.floor(remainingMinutes * 0.6);
+
+    const taskIcons: Record<Exclude<StudyType, 'auto'>, string> = {
+      journey: '🎨',
+      competitive: '⚔️',
+      concept: '💡',
+      pricing: '💰',
+      experience: '🩺',
+      persona: '👤',
+      brand: '📣',
+      ux: '🧩'
+    };
+
+    const taskIcon = taskIcons[studyType] || '📝';
+
+    return `
+### ⏱️ FGD 时长分配建议 (${duration}分钟)
+- **暖场与破冰**：${warmupMinutes}分钟 (${Math.round(warmupMinutes/duration*100)}%) - 让组员互相认识，建立安全氛围
+- **核心互动环节**：${coreInteractionMinutes}分钟 (${Math.round(coreInteractionMinutes/duration*100)}%) ${taskIcon} - 包含群体讨论任务、观点碰撞、深度互动
+- **共识与差异总结**：${summaryMinutes}分钟 (${Math.round(summaryMinutes/duration*100)}%) - 归纳共同点与分歧点，探索需求公约数
+
+💡 **提示**：核心互动环节是FGD的价值核心，确保充分时间进行群体互动和深度讨论。`;
+  }
     const { researchTopic, targetAudience, researchPurpose, interviewType, interviewDuration } = params;
     
     // 改进的时长分配逻辑

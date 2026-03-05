@@ -15,7 +15,8 @@ export async function POST(request: NextRequest) {
       totalDuration,
       systemPrompt, // 新增：完整的SYSTEM_PROMPT
       outputLanguage, // 新增：语言偏好
-      enhancedMode // 新增：增强模式
+      enhancedMode, // 新增：增强模式
+      studyType // 新增：研究类型（可选）
     } = body;
 
     if (!topic || !audience || !goal) {
@@ -25,17 +26,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const rawDuration = parseInt(totalDuration || '30', 10);
+    const isFGD = (interviewType || 'IDI') === 'FGD';
+    let effectiveDuration = Number.isFinite(rawDuration) ? rawDuration : 30;
+    if (isFGD) {
+      if (effectiveDuration < 90) effectiveDuration = 90;
+      if (effectiveDuration > 120) effectiveDuration = 120;
+    }
+
     // 使用 Groq 服务 - 传递完整参数
     const outlineData = await groqService.generateOutline({
       researchTopic: topic,
       targetAudience: audience,
       researchPurpose: goal,
       interviewType: interviewType || 'IDI',
-      interviewDuration: totalDuration || '30',
+      interviewDuration: String(effectiveDuration),
       selectedTemplate: template || 'basic',
       systemPrompt: systemPrompt, // 传递SYSTEM_PROMPT
       outputLanguage: outputLanguage, // 传递语言偏好
-      enhancedMode: enhancedMode || false // 传递增强模式
+      enhancedMode: enhancedMode || false, // 传递增强模式
+      studyType: studyType
     });
 
     console.log('Generated outline:', outlineData);

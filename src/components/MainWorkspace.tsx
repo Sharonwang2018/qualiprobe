@@ -30,9 +30,17 @@ import {
   Zap,
   Cpu,
   Bot,
-  Orbit
+  Orbit,
+  Users
 } from 'lucide-react';
 import { exportToWord } from '../lib/exportDocx';
+
+type FGDInteractionType = 'draw' | 'debate' | 'vote' | 'experiment' | 'values' | 'mapping' | 'conflict' | 'discuss';
+
+const FGD_TASK_ICON: Record<FGDInteractionType, string> = {
+  draw: '🎨', debate: '⚔️', vote: '🗳️', experiment: '🧪',
+  values: '⚖️', mapping: '🎭', conflict: '⚡', discuss: '🗳️',
+};
 
 interface Section {
   id?: number;
@@ -40,6 +48,9 @@ interface Section {
   duration: string;
   questions: string[];
   notes: string;
+  interactionType?: FGDInteractionType;
+  discussionTask?: string;
+  probingQuestion?: string;
 }
 
 interface OutlineData {
@@ -222,6 +233,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
   const [researchTopic, setResearchTopic] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
   const [researchPurpose, setResearchPurpose] = useState('');
+  const [studyType, setStudyType] = useState<'auto' | 'journey' | 'competitive' | 'experience' | 'persona' | 'concept' | 'pricing' | 'brand' | 'ux'>('auto');
   const [interviewType, setInterviewType] = useState<'IDI' | 'FGD'>('IDI');
   const [interviewDuration, setInterviewDuration] = useState('60');
   const [outputLanguage, setOutputLanguage] = useState<'中文' | '英文' | '日文' | '双语对照'>('中文');
@@ -335,10 +347,11 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
           goal: researchPurpose,
           interviewType: interviewType || 'IDI',
           totalDuration: interviewDuration || '60',
-          template: 'basic',
+          template: selectedTemplate,
           systemPrompt: SYSTEM_PROMPT, // 注入完整的SYSTEM_PROMPT
           outputLanguage: outputLanguage, // 传递语言偏好
-          enhancedMode: true // 启用增强模式
+          enhancedMode: true, // 启用增强模式
+          studyType
         }),
       });
 
@@ -559,6 +572,27 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
               <div className="mt-8 pt-8 border-t border-slate-200">
                 <div className="grid grid-cols-2 gap-6">
                   <div>
+                    <Label className="text-slate-600 text-sm mb-1.5 block">{t('studyType.label')}</Label>
+                    <Select value={studyType} onValueChange={(value: any) => setStudyType(value)}>
+                      <SelectTrigger className="h-12 border-slate-200 bg-white/50 backdrop-blur">
+                        <SelectValue placeholder={t('studyType.placeholder')} />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-slate-200">
+                        <SelectItem value="auto" className="text-slate-800">{t('studyType.auto')}</SelectItem>
+                        <SelectItem value="journey" className="text-slate-800">{t('studyType.journey')}</SelectItem>
+                        <SelectItem value="competitive" className="text-slate-800">{t('studyType.competitive')}</SelectItem>
+                        <SelectItem value="experience" className="text-slate-800">{t('studyType.experience')}</SelectItem>
+                        <SelectItem value="persona" className="text-slate-800">{t('studyType.persona')}</SelectItem>
+                        <SelectItem value="concept" className="text-slate-800">{t('studyType.concept')}</SelectItem>
+                        <SelectItem value="pricing" className="text-slate-800">{t('studyType.pricing')}</SelectItem>
+                        <SelectItem value="brand" className="text-slate-800">{t('studyType.brand')}</SelectItem>
+                        <SelectItem value="ux" className="text-slate-800">{t('studyType.ux')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-slate-400 text-xs mt-2">{t('studyType.helper')}</p>
+                  </div>
+
+                  <div>
                     <Label className="text-slate-600 text-sm mb-1.5 block">{t('workspace.interviewType')}</Label>
                     <Select value={interviewType} onValueChange={(value: 'IDI' | 'FGD') => setInterviewType(value)}>
                       <SelectTrigger className="h-12 border-slate-200 bg-white/50 backdrop-blur">
@@ -570,7 +604,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div>
                     <Label className="text-slate-600 text-sm mb-1.5 block">{t('workspace.interviewDuration')}</Label>
                     <Select value={interviewDuration} onValueChange={setInterviewDuration}>
@@ -585,6 +619,11 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                         <SelectItem value="120" className="text-slate-800">{t('durations.120')}</SelectItem>
                       </SelectContent>
                     </Select>
+                    {interviewType === 'FGD' && (
+                      <p className="text-indigo-600 text-xs mt-2">
+                        FGD 建议 90–120 分钟，环节时长将按比例分配
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -772,45 +811,196 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                 </div>
                 
                 <div className="text-center mb-8">
-                  <h3 className="text-2xl font-bold text-slate-800 mb-3">{outlineData.project_title}</h3>
+                  <h3 className="text-2xl font-bold text-blue-600 mb-3">{outlineData.project_title}</h3>
                   <p className="text-slate-500">{t('workspace.professionalOutline')}</p>
                 </div>
-                
-                {outlineData.sections.map((section, index) => (
-                  <div key={section.id || index} className="border-l-4 border-blue-500 pl-6 mb-8">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-lg font-semibold text-slate-800">{section.title}</h4>
-                      <span className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded">
-                        <Clock className="w-3 h-3 inline mr-2" />
-                        {section.duration}
-                      </span>
+
+                {/* 项目基本信息 */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+                  <h4 className="text-lg font-bold text-blue-700 mb-4 flex items-center">
+                    <span className="mr-2">📋</span>
+                    {t('outline.projectInfo')}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-start">
+                      <span className="font-semibold text-blue-600 mr-2">{t('outline.researchTopic')}：</span>
+                      <span className="text-slate-700">{researchTopic || t('outline.notSpecified')}</span>
                     </div>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <h5 className="font-medium text-slate-700 mb-3">{t('workspace.questions')}</h5>
-                        <ul className="space-y-3">
-                          {section.questions.map((question, qIndex) => (
-                            <li key={qIndex} className="flex items-start">
-                              <span className="text-blue-500 mr-3">•</span>
-                              <span className="text-slate-700">{question}</span>
-                            </li>
-                          ))}
-                        </ul>
+                    <div className="flex items-start">
+                      <span className="font-semibold text-blue-600 mr-2">{t('outline.targetAudience')}：</span>
+                      <span className="text-slate-700">{targetAudience || t('outline.notSpecified')}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="font-semibold text-blue-600 mr-2">{t('outline.researchPurpose')}：</span>
+                      <span className="text-slate-700">{researchPurpose || t('outline.notSpecified')}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="font-semibold text-blue-600 mr-2">{t('outline.interviewType')}：</span>
+                      <span className="text-slate-700">{interviewType === 'IDI' ? t('interviewTypes.idi') : t('interviewTypes.fgd')}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="font-semibold text-blue-600 mr-2">{t('outline.interviewDuration')}：</span>
+                      <span className="text-slate-700">{t(`durations.${interviewDuration}`)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 免责声明 */}
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-8">
+                  <h4 className="text-lg font-bold text-yellow-700 mb-3 flex items-center">
+                    <span className="mr-2">⚠️</span>
+                    {t('outline.disclaimer')}
+                  </h4>
+                  <p className="text-yellow-800 italic text-sm leading-relaxed">
+                    {t('outline.disclaimerText')}
+                  </p>
+                </div>
+
+                {/* 暖场话术 */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-8">
+                  <h4 className="text-lg font-bold text-green-700 mb-4 flex items-center">
+                    <span className="mr-2">🎤</span>
+                    {t('outline.warmUpScript')}
+                  </h4>
+                  <div className="space-y-3">
+                    {[
+                      t('outline.welcome'),
+                      t('outline.selfIntro'),
+                      t('outline.purposeExplanation'),
+                      t('outline.confidentialityCommitment'),
+                      t('outline.recordingNotice'),
+                      t('outline.openingQuestion')
+                    ].map((item, index) => (
+                      <div key={index} className="flex items-start">
+                        <span className="text-green-600 mr-3 font-semibold">{index + 1}.</span>
+                        <span className="text-slate-700 text-sm">{item}</span>
                       </div>
-                      
-                      {section.notes && (
-                        <div>
-                          <h5 className="font-medium text-slate-700 mb-3">{t('workspace.notes')}</h5>
-                          <p className="text-slate-600 text-sm bg-slate-50 p-4 rounded">
+                    ))}
+                  </div>
+                </div>
+
+                {/* 详细访谈大纲 */}
+                <div className="bg-white border border-slate-200 rounded-lg shadow-sm">
+                  <div className="bg-gradient-to-r from-blue-500 to-purple-500 text-white p-4 rounded-t-lg">
+                    <h4 className="text-xl font-bold flex items-center">
+                      <span className="mr-2">📝</span>
+                      {t('outline.detailedOutline')}
+                    </h4>
+                  </div>
+                  
+                  <div className="p-6">
+                    {outlineData.sections.map((section, index) => (
+                      <div key={section.id || index} className="mb-8 last:mb-0">
+                        {/* 环节标题 */}
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-4">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-lg font-bold text-blue-700 flex items-center">
+                              {interviewType === 'FGD' && (section as Section).interactionType && FGD_TASK_ICON[(section as Section).interactionType!] ? (
+                                <span className="mr-2 text-base" aria-hidden>{FGD_TASK_ICON[(section as Section).interactionType!]}</span>
+                              ) : interviewType === 'FGD' ? (
+                                <Users className="w-4 h-4 mr-2 text-indigo-500 flex-shrink-0" aria-hidden />
+                              ) : (
+                                <span className="mr-2">■</span>
+                              )}
+                              {t('outline.sectionTitle', { number: section.id || index + 1, title: section.title })}
+                            </h5>
+                            <span className="text-sm font-semibold text-slate-600 bg-white px-3 py-1 rounded-full shadow-sm">
+                              <Clock className="w-3 h-3 inline mr-1" />
+                              {section.duration}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 研究问题 */}
+                        <div className="mb-4 border-l-4 border-blue-200 bg-blue-50/40 rounded-r-lg py-3 pl-4 pr-3">
+                          <h6 className="font-semibold text-blue-700 mb-2 flex items-center">
+                            <span className="mr-2">❓</span>
+                            {t('outline.researchQuestions')}
+                          </h6>
+                          <div className="space-y-2 ml-2">
+                            {section.questions.map((question, qIndex) => {
+                              const isProbing = question.includes("为什么") || question.includes("如何") || 
+                                               question.includes("请描述") || question.includes("具体") ||
+                                               question.includes("如果") || question.includes("设想");
+                              
+                              return (
+                                <div key={qIndex} className="flex items-start">
+                                  <span className="mr-3 text-lg">
+                                    {isProbing ? "💡" : "•"}
+                                  </span>
+                                  <span
+                                    className={`text-sm leading-relaxed ${
+                                      isProbing ? 'text-blue-700 italic font-medium' : 'text-slate-700'
+                                    }`}
+                                  >
+                                    {question}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* 讨论任务 - 任务驱动式 */}
+                        {(section as Section).discussionTask && (
+                          <div className="mb-4 border-l-4 border-amber-300 bg-amber-50/50 rounded-r-lg py-3 pl-4 pr-3">
+                            <h6 className="font-semibold text-amber-800 mb-2 flex items-center">
+                              <span className="mr-2">🗳️</span>
+                              讨论任务
+                            </h6>
+                            <p className="text-slate-700 text-sm leading-relaxed ml-2">
+                              {(section as Section).discussionTask}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* 深度追问 */}
+                        {(section as Section).probingQuestion && (
+                          <div className="mb-4 border-l-4 border-indigo-300 bg-indigo-50/40 rounded-r-lg py-3 pl-4 pr-3">
+                            <h6 className="font-semibold text-indigo-800 mb-2 flex items-center">
+                              <span className="mr-2">⚡</span>
+                              深度追问
+                            </h6>
+                            <p className="text-slate-700 text-sm leading-relaxed ml-2 whitespace-pre-line">
+                              {(section as Section).probingQuestion}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* 备注说明 */}
+                        <div className="bg-slate-50 border-l-4 border-purple-300 p-4 rounded-r-lg">
+                          <h6 className="font-semibold text-purple-700 mb-2 flex items-center">
+                            <span className="mr-2">📄</span>
+                            {t('outline.notesExplanation')}
+                          </h6>
+                          <p className="text-slate-600 text-sm italic ml-6 whitespace-pre-line">
                             {section.notes}
                           </p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+
+                {/* 结束语 */}
+                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-6 mt-8">
+                  <h4 className="text-lg font-bold text-indigo-700 mb-4 flex items-center">
+                    <span className="mr-2">🎯</span>
+                    {t('outline.conclusion')}
+                  </h4>
+                  <p className="text-indigo-800 text-sm leading-relaxed">
+                    {t('outline.conclusionText')}
+                  </p>
+                </div>
+
+                {/* 文档结束标识 */}
+                <div className="text-center mt-12 mb-8">
+                  <div className="inline-block bg-slate-100 px-6 py-2 rounded-full">
+                    <span className="text-slate-500 text-sm font-mono">-- {t('outline.documentEnd')} --</span>
+                  </div>
+                </div>
+
+                              </div>
             )}
 
             {/* 编辑界面 */}

@@ -71,6 +71,8 @@ function QualiProbe() {
   useEffect(() => {
     if (activeProject) {
       setOutlineData(activeProject.data);
+    } else {
+      setOutlineData(null);
     }
   }, [activeProject]);
 
@@ -91,6 +93,21 @@ function QualiProbe() {
 
   const handleSelectProject = (projectId: string) => {
     setActiveProjectId(projectId);
+  };
+
+  const handleApplySuggestion = (section: { title: string; duration: string; questions: string[]; notes: string }) => {
+    if (!outlineData?.sections || !activeProjectId) return;
+    const newSection = {
+      ...section,
+      id: outlineData.sections.length + 1,
+    };
+    const newOutline = {
+      ...outlineData,
+      sections: [...outlineData.sections, newSection],
+    };
+    setProjects((prev) =>
+      prev.map((p) => (p.id === activeProjectId ? { ...p, data: newOutline } : p))
+    );
   };
 
   const disclaimerText = useMemo(() => {
@@ -115,7 +132,7 @@ function QualiProbe() {
       setLeftWidth(newWidth);
     } else if (isDragging === 'right') {
       if (isAgentCollapsed) return;
-      const newWidth = Math.max(18, Math.min(25, 100 - percentage));
+      const newWidth = Math.max(18, Math.min(45, 100 - percentage));
       setRightWidth(newWidth);
     }
   };
@@ -178,13 +195,14 @@ function QualiProbe() {
           {/* 右侧面板 - AI Agent */}
           {!isAgentCollapsed && (
             <div 
-              className="bg-transparent border-l border-slate-100 flex-shrink-0 w-[25%] max-w-[320px] min-w-[240px]"
-              style={{ width: `${Math.min(25, rightWidth)}%` }}
+              className="bg-transparent border-l border-slate-100 flex-shrink-0 min-w-[240px]"
+              style={{ width: `${Math.min(45, rightWidth)}%` }}
             >
               <AgentChat 
                 outlineData={outlineData}
                 isCollapsed={isAgentCollapsed}
                 onToggleCollapse={() => setIsAgentCollapsed(true)}
+                onApplySuggestion={handleApplySuggestion}
               />
             </div>
           )}

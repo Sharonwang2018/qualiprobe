@@ -7,6 +7,8 @@ interface Section {
   duration: string;
   questions: string[];
   notes: string;
+  discussionTask?: string;
+  probingQuestion?: string;
 }
 
 interface OutlineData {
@@ -412,17 +414,44 @@ export const exportToWord = async (data: OutlineData) => {
               },
             }),
 
-            // 研究问题标题
+            // [讨论任务] FGD 环节任务（如有）
+            ...(section.discussionTask ? [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: "讨论任务：",
+                    bold: true,
+                    size: 22,
+                    color: "27AE60",
+                    font: { name: "Microsoft YaHei" },
+                  }),
+                ],
+                spacing: { before: 200, after: 100 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: section.discussionTask,
+                    size: 22,
+                    color: "2C3E50",
+                    font: { name: "Microsoft YaHei" },
+                  }),
+                ],
+                spacing: { after: 200 },
+                indent: { left: convertInchesToTwip(0.2) },
+                shading: { type: "solid", color: "E8F5E9" },
+              }),
+            ] : []),
+
+            // 研究问题
             new Paragraph({
               children: [
                 new TextRun({
                   text: "研究问题：",
                   bold: true,
-                  size: 22, // 11pt
+                  size: 22,
                   color: "34495E",
-                  font: {
-                    name: "Microsoft YaHei",
-                  },
+                  font: { name: "Microsoft YaHei" },
                 }),
               ],
               spacing: { before: 200, after: 100 },
@@ -460,6 +489,48 @@ export const exportToWord = async (data: OutlineData) => {
                 indent: { left: convertInchesToTwip(0.2) }, // 0.5厘米缩进
               });
             }),
+
+            // [深度追问] 追问梯子（如有）
+            ...(section.probingQuestion ? (() => {
+              const probes = section.probingQuestion.split(/\n+/).filter(Boolean);
+              return [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: "深度追问（追问梯子）：",
+                      bold: true,
+                      size: 22,
+                      color: "8E44AD",
+                      font: { name: "Microsoft YaHei" },
+                    }),
+                  ],
+                  spacing: { before: 200, after: 100 },
+                }),
+                ...probes.map((probe, i) =>
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: `追问 ${i + 1}: `,
+                        bold: true,
+                        size: 22,
+                        color: "3498DB",
+                        font: { name: "Microsoft YaHei" },
+                      }),
+                      new TextRun({
+                        text: probe.trim(),
+                        size: 22,
+                        italics: true,
+                        color: "555555",
+                        font: { name: "Microsoft YaHei" },
+                      }),
+                    ],
+                    spacing: { after: 80 },
+                    indent: { left: convertInchesToTwip(0.2) },
+                    shading: { type: "solid", color: "EBF5FB" },
+                  })
+                ),
+              ];
+            })() : []),
 
             // 备注说明
             new Paragraph({
