@@ -14,7 +14,10 @@ export interface OutlineData {
     notes: string;
     interactionType?: FGDInteractionType;
     discussionTask?: string; // [讨论任务] 任务驱动式环节
-    probingQuestion?: string; // [深度追问] 挖掘底层动机
+    consensusChallengeTask?: string; // [共识挑战] FGD 环节2 强制：集体否定方案并给出杀伤力理由
+    probingQuestion?: string; // [深度追问] 场景+情感+认知失调
+    behavioralEvidenceTask?: string; // [证物展示] Show & Tell 行为证据校验
+    isCore?: boolean;
   }>;
 }
 
@@ -292,7 +295,7 @@ class GroqService {
 
   private buildSystemGuide(studyType: Exclude<StudyType, 'auto'>): string {
     const common = `
-你是一名顶尖市场研究咨询公司（如 Ipsos、Kantar、GfK、尼尔森）的定性研究总监，拥有 15 年以上定性研究及深度分析经验。你擅长设计能挖到「真实动机与行为」的 Discussion Guide，而非表面问答。
+你是一名战略咨询级别的定性研究总监（如 Ipsos、Kantar、麦肯锡、BCG 定性团队），拥有 15 年以上定性研究及深度分析经验。你擅长设计能挖到「真实动机、行为证据与认知失调」的 Discussion Guide，产出具备战略洞察价值的大纲。
 
 ### 角色与标准 (ROLE)
 - 产出的大纲必须达到可交付客户/项目组的水准：可直接用于培训主持人、执行现场、支撑报告洞察。
@@ -302,14 +305,28 @@ class GroqService {
 ### 拒绝平庸问法 (FORBIDDEN)
 - 严禁：“你觉得如何”“优缺点是什么”“满意吗”“有什么建议”等宽泛、闭合式问法。
 - 每个环节必须以**具体任务**、**场景投射**或**时间线复盘**驱动，而非泛泛征询意见。
+- **未来/未上市产品话术**：当研究对象为未来款、未发布产品或假设性概念时，严禁直接问“大家觉得 X 的主要卖点是什么”“你认为 X 怎么样”等以 X 为已知事实的问法。必须改用**假设性条件句**，如“如果有一款手机，便宜 1000 元但去掉了 AI 功能，或者贵 1000 元但续航翻倍，你那一刻的「肉疼感」在哪里？”“假设下一代产品增加了 XX 功能，你会如何权衡？”等。
+
+### 追问逻辑算法 (Probing Algorithm) — Action → Feeling → Motivation
+- **严禁笼统评价类问题**：如“你觉得如何”“满意度如何”“有什么看法”等。
+- **所有 probingQuestion 必须严格遵循递进序列**：
+  1) **Level 1 (Action 行为)**：那 10 秒钟里，你的手在干什么？眼睛在看哪里？当时发生了什么？能举个具体例子/那个瞬间吗？
+  2) **Level 2 (Feeling 感受)**：那种感觉是「被打扰」还是「被忽视」？你当下的真实感受是什么？那一刻对你意味着什么？
+  3) **Level 3 (Motivation 动机)**：如果这种感觉持续发生，你会如何重新定义这个品牌？当实际表现与你的预期不符时，你如何调整了后续的操作/选择行为？
+- **isCore: true 的环节**：probingQuestion 不少于 **3 组**（每组含 Action + Feeling + Motivation），且必须包含具体的**互动任务（Task）**（如 discussionTask、behavioralEvidenceTask、consensusChallengeTask 等）。
+- **notes** 须包含：① 研究目的 ② 观察点 ③ 追问话术。
+
+### 行为证据校验 (Behavioral Evidence)
+- 至少一个核心环节须包含 **behavioralEvidenceTask**（证物展示 / Show & Tell）：
+- 示例：“请大家打开手机相册或 App 历史记录，找出一个最能代表你‘焦虑’或‘爽快’时刻的截图/照片，并分享那个瞬间。”
+- 根据研究课题灵活设计：如订单截图、购物车、浏览记录、聊天记录等可验证行为的“证物”。
+
+### 环节时长智能化
+- **核心挖掘环节须占 70% 总时长**：暖场/破冰与收尾合计不超过 30%。
+- 为核心环节（非暖场、非收尾）设置 \`isCore: true\`，便于导出时视觉强调。
 
 ### 绝对要求 (CRITICAL RULES)
-- 围绕研究课题与真实生活场景展开；问题须口语化、可回答、基于回忆具体经历（优先问“上一次/最近一次/某一次具体发生了什么”）。
-- 每个环节必须包含 **probingQuestion**：2-3 条可执行的追问句，形成追问梯子（Laddering），逐层挖动机：
-  1) 第一层：落到“当时发生了什么”“能举个具体例子/那个瞬间”；
-  2) 第二层：落到“你当时第一反应是什么”“那一刻对你意味着什么”；
-  3) 第三层：落到“这具体改变了你后续的什么选择/行为/判断”。
-- **notes** 须包含：① 研究目的 ② 观察点（如：情绪转折、犹豫点、语言隐喻）③ 2-3 条具体追问话术（禁止“为什么”“还有呢”式空泛追问）。
+- 围绕研究课题与真实生活场景展开；问题须口语化、可回答、基于回忆具体经历。
 - 输出必须严格为 JSON（json_object），不要添加解释性文字。
 `;
 
@@ -317,6 +334,7 @@ class GroqService {
       return `${common}
 ### 旅程研究结构 (Customer Journey) — 定性研究钩子
 - **必须包含“体感地图绘制”**：请组员在白板/纸上画出从触发到使用后的旅程图，标出关键决策点、情绪转折、触点。
+- **必须包含“情绪断点挖掘”**：强制问：“在整个加油/购车/XX过程中，哪个瞬间让你产生过「干脆算了」的念头？” 落到具体触点与决策临界点。
 - 以阶段组织：触发/准备（Before）→ 现场体验（During）→ 事后回想与复购（After）。
 - 每个阶段覆盖：关键行为、决策点、情绪/顾虑、触点、例外场景。
 `;
@@ -334,6 +352,7 @@ class GroqService {
       return `${common}
 ### 体验诊断结构 (Experience Diagnostic) — 定性研究钩子
 - **必须包含“红黑榜/找茬挑战”**：如让组员列出“最惊喜的3个瞬间”和“最想吐槽的3个瞬间”，或对触点进行“找茬”式讨论。
+- **必须包含“证物展示”模块**：至少一个核心环节设 behavioralEvidenceTask（如打开手机相册/App 记录，找出最能代表「焦虑」或「爽快」时刻的截图/照片，并分享那个瞬间）。
 - 以预期→实际体验→关键时刻→原因追溯组织。
 - 把好/不好的感受落到具体触点与细节。
 `;
@@ -342,7 +361,7 @@ class GroqService {
     if (studyType === 'persona') {
       return `${common}
 ### 画像/细分结构 (Persona) — 定性研究钩子
-- **必须包含“品牌拟人化/映射”**：如“如果该品牌是一个人，他穿什么、什么语气、更像管家还是工人？”用拟人化拉开人群差异。
+- **必须包含“身份贴标签”与“品牌拟人化”**：严禁问“你是什么样的人”；改为投射式问法，如“如果你是一辆车，你会是什么颜色、什么配置？为什么？”或“如果该品牌是一个人，他穿什么、什么语气、更像管家还是工人？”用拟人化拉开人群差异。
 - 目标不是贴标签，而是找到“动机/场景/取舍”的分化方式。
 - 必须包含：生活/工作节奏、触发情境、价值取舍、典型一次经历、语言与隐喻。
 `;
@@ -353,6 +372,7 @@ class GroqService {
 ### 概念/方案测试结构 (Concept Test)
 - 先测“理解”再测“价值”再测“可信/风险”。
 - 必须包含：对比现有替代方案、使用场景落地、触发与阻碍。
+- **未上市概念**：若测试对象为未来款/未发布产品，一律用假设性条件句（“如果…”“假设…”），严禁直接问“你觉得 X 的卖点是什么”。
 `;
     }
 
@@ -360,6 +380,7 @@ class GroqService {
       return `${common}
 ### 定价/价值感结构 (Pricing) — 定性研究钩子
 - **必须包含“心理账单博弈/拍卖”**：如给定总预算，在多个维度间分配；或模拟“愿意为某功能多付多少”的博弈式讨论。
+- **必须包含“价值剥离实验”**：使用假设性条件句，如“如果有一款手机，便宜 1000 元但去掉了 AI 功能，或者贵 1000 元但续航翻倍，你那一刻的「肉疼感」在哪里？”挖出真实的价值权衡与支付意愿临界点。严禁将未上市具体机型（如 iPhone 18）当作已知事实直接询问卖点。可以加入PSM的题
 - 不要直接问“你愿意付多少钱”，挖价值锚点、心理账户、付费触发条件、阻碍条件。
 `;
     }
@@ -368,7 +389,7 @@ class GroqService {
       return `${common}
 ### 品牌/传播结构 (Brand)
 - 重点是“联想/情绪/角色/可信度/语言解码”，而不是满意度。
-- 必须包含：类别角色、品牌联想、信息理解偏差、与生活场景/人群的匹配。
+- 必须包含：类别角色、品牌联想、品牌漏斗，信息理解偏差、与生活场景/人群的匹配。
 `;
     }
 
@@ -433,44 +454,120 @@ class GroqService {
 
     const fgdBlock = isFGD ? `
 
-### FGD 焦点小组专属要求 (Focus Group Discussion)
+### FGD 焦点小组专属要求 (Focus Group Discussion) — 社会评价压力 + 观点博弈
+- **研究聚焦**：社会评价压力（当众表达、从众/异议）、观点博弈（说服与被说服）。
 - **当前研究类型为「${currentStudyLabel}」**，大纲内容必须严格按该类型。
-- **环节 2（核心讨论）必须设计“冲突点触发任务”**：价值观光谱、卡片分类、角色扮演等，提问须包含“有没有人有不同意见？”“请试图说服对方”等互动指令。
-- **追问细度强制要求（避免笼统）**：
+- **环节 2 强制包含“共识挑战任务”**：要求组员集体否定一个现有的方案/产品/功能，并给出最具杀伤力的理由。示例：“请大家一起否决当前方案，说出最能击垮它的一个理由。”
+- **环节 2 同时设计“冲突点触发任务”**：价值观光谱、卡片分类、角色扮演等，提问须包含“有没有人有不同意见？”“请试图说服对方”等互动指令。
+- **behavioralEvidenceTask**：至少一个核心环节须设证物展示，用「请大家」群体语气，如“请大家打开手机相册或 App 历史记录，找出一个最能代表你「焦虑」或「爽快」时刻的截图/照片，并分享那个瞬间。”
+- **追问细度强制要求（Action → Feeling → Motivation）**：
   - 严禁单句追问如“为什么？”“还有呢？”“能具体说说吗？”。
-  - 每个主问题/每个环节必须给出 **2-3 条具体追问**，形成追问梯子，逐层深挖：
-    1) 第一层：落到“当时发生了什么”“能举个具体例子/那个瞬间”；
-    2) 第二层：落到“你当时第一反应是什么”“那一刻对你意味着什么”；
-    3) 第三层：落到“这具体改变了你后续的什么选择/行为/判断”。
-  - \`probingQuestion\` 须输出 **2-3 条可执行追问句**，用换行分隔，每条都要具体、可操作，禁止“为什么”式空泛追问。
+  - \`probingQuestion\` 须严格按递进序列输出，用换行分隔：
+    1) **Level 1 (Action)**：那 10 秒钟里，你的手在干什么？眼睛在看哪里？当时发生了什么？能举个具体例子/那个瞬间吗？
+    2) **Level 2 (Feeling)**：那种感觉是「被打扰」还是「被忽视」？你当下的真实感受是什么？那一刻对你意味着什么？
+    3) **Level 3 (Motivation)**：如果这种感觉持续发生，你会如何重新定义这个品牌？当实际与预期不符时，你如何调整了后续的选择/行为？
+  - **isCore 环节**：probingQuestion 不少于 **3 组**（每组含 Action + Feeling + Motivation），且必须包含 discussionTask 或 consensusChallengeTask 或 behavioralEvidenceTask。
 - **questions 数组要求**：每个环节的 questions 不少于 3 条，且每条主问题后可在 notes 中注明对应追问；或直接将追问拆成独立 questions 条目。
 - **备注 (notes)**：须包含**主持人干预技巧**（如何处理话多/沉默者、若一边倒如何追问），以及**本环节的 2-3 条具体追问话术**，逐条写出，不要概括。
 - **当前研究类型专属任务**：${fgdInteraction ? `【${fgdInteraction.task}】请在环节 2 落实，并设 \`interactionType\` 为 \`"${fgdInteraction.type}"\`。` : ''}
-- **环节时长**：核心互动环节（环节 2）须占 60% 以上。
+- **环节时长**：核心挖掘环节须占 70% 总时长，暖场+收尾合计不超过 30%。
 ` : `
 
-### IDI 深度访谈要求 (In-Depth Interview)
-- **每个环节都必须包含 probingQuestion**：2-3 条可执行追问句，用换行分隔，形成追问梯子。严禁单句“为什么”“还有呢”。
-- **questions**：每环节不少于 3 条主问题，须口语化、基于具体经历。
-- **notes**：须含研究目的、观察点（情绪转折、犹豫点、语言隐喻）、2-3 条具体追问话术。
+### IDI 深度访谈要求 (In-Depth Interview) — 极端个案 + 心理防御拆解
+- **研究聚焦**：极端个案（outlier）、心理防御拆解（rationalization、justification、认知偏差）。
+- **probingQuestion**：须严格按 Action → Feeling → Motivation 递进（3 条），用换行分隔。
+- **behavioralEvidenceTask**：至少一个核心环节须设证物展示，用「请你」单人语气，如“请你打开手机相册或 App 历史记录，找出一个最能代表你「焦虑」或「爽快」时刻的截图/照片，并分享那个瞬间。”
+- **questions**：每环节不少于 3 条主问题，须口语化、基于具体经历；追问要拆解受访者的“合理化说辞”。
+- **notes**：须含研究目的、观察点、追问话术（含心理防御拆解提示）。
+- **核心环节占 70% 时长**：为核心环节设 isCore: true。
 `;
 
     const outputLanguage = params.outputLanguage || '中文';
     const languageDirective = (() => {
       if (outputLanguage === '英文') {
-        return `\n### 🌐 Output Language Requirement\n- All content in the JSON values must be written in English.\n- Do not include any Chinese characters.\n`;
+        return `\n### CRITICAL: Output Language = English ONLY\n- **Every** JSON value (project_title, section title, duration, questions, notes, probingQuestion, discussionTask, consensusChallengeTask, behavioralEvidenceTask) MUST be written in English.\n- Do NOT include any Chinese or Japanese characters. Use English throughout.\n`;
       }
       if (outputLanguage === '日文') {
-        return `\n### 🌐 出力言語要件\n- JSON の値の文章はすべて日本語で書いてください。\n- 中国語（簡体字/繁体字）を含めないでください。\n`;
+        return `\n### CRITICAL: 出力言語 = 日本語のみ\n- **すべての** JSON 値（project_title、section title、duration、questions、notes、probingQuestion 等）は日本語で書いてください。\n- 中国語を含めないでください。\n`;
       }
       if (outputLanguage === '双语对照') {
-        return `\n### 🌐 双语对照输出要求\n- 每一条问题都输出为“中文 / English”同一行对照格式，例如：\n  - "你上一次来这里加油时发生了什么？ / What happened the last time you refueled here?"\n- notes 也使用同样的双语对照格式。\n`;
+        return `\n### CRITICAL: 双语对照输出\n- 每一条问题、notes、title 等均须输出为「中文 / English」同一行对照格式。\n- 例："你上一次加油时发生了什么？ / What happened the last time you refueled?"\n`;
       }
-      return '';
+      return `\n### CRITICAL: 输出语言 = 中文\n- **所有** JSON 值（project_title、环节标题、duration、questions、notes、probingQuestion 等）必须使用中文书写。\n`;
     })();
+
+    const durPlaceholder = outputLanguage === '英文' ? 'XX min' : outputLanguage === '日文' ? 'XX分' : 'XX分钟';
+    const ex = (() => {
+      if (outputLanguage === '英文') {
+        return {
+          title1: 'Warm-up / Ice-breaker',
+          title2: 'Section title (core)',
+          q1: 'Specific question 1',
+          q2: 'Specific question 2',
+          q3: 'Specific question 3',
+          notes: 'Research purpose, observation points.',
+          notesFgd: 'Research purpose, observation points. For over-speakers, invite others; for quiet ones, invite "what do those who have not spoken think?".',
+          notesCore: 'Research purpose, observation points, probing script.',
+          probe: 'What were you doing in those 10 seconds? Where were you looking? What happened? Can you give a concrete example?\\nWas that feeling more like being interrupted or being ignored? What was your real feeling?\\nIf this feeling kept happening, how would you redefine this brand? How did you adjust your behavior when reality did not match expectation?',
+          probe2: 'What were you doing in those 10 seconds? Where were you looking? What happened? Can you give a concrete example?\\nWas that feeling interrupted or ignored? What did it mean to you at that moment?\\nIf this feeling kept happening, how would you redefine this brand? How did you adjust your behavior when reality did not match expectation?',
+          evidence: isFGD ? 'Please open your phone album or app history, find a screenshot/photo that best represents a moment of anxiety or satisfaction, and share that moment.' : 'Please open your phone album or app history, find a screenshot/photo that best represents a moment of anxiety or satisfaction, and share that moment.',
+          consensus: 'Please collectively reject the current solution/product/feature and give the most damaging reason.',
+        };
+      }
+      if (outputLanguage === '日文') {
+        return {
+          title1: 'ウォーミングアップ',
+          title2: 'セクションタイトル（コア）',
+          q1: '具体的な質問1',
+          q2: '具体的な質問2',
+          q3: '具体的な質問3',
+          notes: '研究目的、観察ポイント。',
+          notesFgd: '研究目的、観察ポイント。発言過多者には他者を促す；沈黙者には「まだ発言していない方どう思いますか」と促す。',
+          notesCore: '研究目的、観察ポイント、プロービングスクリプト。',
+          probe: 'その10秒間、手は何をしていましたか？目はどこを見ていましたか？何が起きましたか？具体例を挙げられますか？\\nその感覚は「邪魔された」感じですか、それとも「無視された」感じですか？\\nその感覚が続いたら、このブランドをどう再定義しますか？',
+          probe2: 'その10秒間、手は何をしていましたか？目はどこを見ていましたか？何が起きましたか？具体例を挙げられますか？\\nその感覚は「邪魔された」感じですか、それとも「無視された」感じですか？その瞬間あなたにとって何を意味しましたか？\\nその感覚が続いたら、このブランドをどう再定義しますか？',
+          evidence: 'スマートフォンのアルバムまたはアプリ履歴を開き、不安や満足の瞬間を代表するスクリーンショット/写真を見つけて共有してください。',
+          consensus: '現在の方案/製品/機能を collectively 否定し、最も致命的な理由を述べてください。',
+        };
+      }
+      if (outputLanguage === '双语对照') {
+        return {
+          title1: '暖场/破冰 / Warm-up',
+          title2: '环节标题（核心）/ Section title (core)',
+          q1: '具体问题1 / Specific question 1',
+          q2: '具体问题2 / Specific question 2',
+          q3: '具体问题3 / Specific question 3',
+          notes: '研究目的、观察点。 / Research purpose, observation points.',
+          notesFgd: '研究目的、观察点。 / Research purpose, observation points. 技巧：过度发言者—点名请他人补充；沉默者—点名邀请。',
+          notesCore: '研究目的、观察点、追问话术。 / Research purpose, observation points, probing script.',
+          probe: '那 10 秒钟里，你的手在干什么？/ What were you doing in those 10 seconds?\\n那种感觉是「被打扰」还是「被忽视」？/ Was that feeling interrupted or ignored?\\n如果这种感觉持续发生，你会如何重新定义这个品牌？/ How would you redefine this brand?',
+          probe2: '那 10 秒钟里，你的手在干什么？/ What were you doing?\\n那种感觉是「被打扰」还是「被忽视」？/ Was that feeling interrupted or ignored?\\n如果这种感觉持续发生，你会如何重新定义这个品牌？/ How would you redefine this brand?',
+          evidence: isFGD ? '请大家打开 / Please open 手机相册或 App 历史记录 / your phone album or app history' : '请你打开 / Please open 手机相册或 App 历史记录 / your phone album or app history',
+          consensus: '请大家一起否决当前方案 / Please collectively reject the current solution',
+        };
+      }
+      return {
+        title1: '暖场/破冰',
+        title2: '环节标题（核心）',
+        q1: '具体问题1',
+        q2: '具体问题2',
+        q3: '具体问题3',
+        notes: '研究目的、观察点。',
+        notesFgd: '研究目的、观察点。技巧：过度发言者—点名请他人补充；沉默者—点名邀请"刚才没发言的朋友怎么看"。追问话术须逐条写出（含 Action+Feeling+Motivation）。',
+        notesCore: '研究目的、观察点、追问话术（含心理防御拆解提示）。',
+        probe: '那 10 秒钟里，你的手在干什么？眼睛在看哪里？当时发生了什么？能举个具体例子吗？\\n那种感觉是「被打扰」还是「被忽视」？你当下的真实感受是什么？\\n如果这种感觉持续发生，你会如何重新定义这个品牌？当实际与预期不符时，你如何调整了后续行为？',
+        probe2: '那 10 秒钟里，你的手在干什么？眼睛在看哪里？当时发生了什么？能举个具体例子/那个瞬间吗？\\n那种感觉是「被打扰」还是「被忽视」？你当下的真实感受是什么？那一刻对你意味着什么？\\n如果这种感觉持续发生，你会如何重新定义这个品牌？当实际表现与预期不符时，你如何调整了后续的操作/选择行为？',
+        evidence: isFGD ? '请大家打开手机相册或 App 历史记录，找出一个最能代表你「焦虑」或「爽快」时刻的截图/照片，并分享那个瞬间。' : '请你打开手机相册或 App 历史记录，找出一个最能代表你「焦虑」或「爽快」时刻的截图/照片，并分享那个瞬间。',
+        consensus: '请大家一起否决当前方案/产品/功能，说出最能击垮它的一个理由，并讨论谁的理由最具杀伤力。',
+      };
+    })();
+
+    const routingNote = `\n### 强制性逻辑分支 (Universal Routing) — 拒绝通用模板
+- 系统禁止使用通用模板。必须根据「研究类型：${currentStudyLabel}」与「访谈类型：${interviewType}」动态组装大纲，不得产出与类型无关的泛泛内容。\n`;
 
     const userPrompt = `
 请生成以下访谈大纲：
+${routingNote}
 - 研究课题：${researchTopic}
 - 核心话题：${coreTopic}
 - 研究类型（与 IDI/FGD 共用）：${currentStudyLabel} — 大纲内容（环节主题、问题方向）必须严格围绕该类型及上述课题/目标，不得偏离。
@@ -483,25 +580,37 @@ ${fgdBlock}
 
 当前选择的输出语言：${outputLanguage}
 
-请严格按照以下JSON格式返回：
+请严格按照以下JSON格式返回（示例占位符已按输出语言「${outputLanguage}」展示，你生成的全部内容也必须使用该语言）：
 
 {
   "project_title": "${coreTopic} - Discussion Guide (${interviewType})",
   "sections": [
     {
       "id": 1,
-      "title": "环节标题",
-      "duration": "XX分钟",
-      "questions": ["具体问题1", "具体问题2", "具体问题3"],
-      "notes": "${isFGD ? '研究目的、观察点。技巧：过度发言者—点名请他人补充；沉默者—点名邀请“刚才没发言的朋友怎么看”；若一边倒—追问“能举个让你差点动摇的瞬间吗？”。追问话术须逐条写出。' : '研究目的、观察点（如情绪转折、犹豫点、语言隐喻）、2-3条具体追问话术（禁止“为什么”“还有呢”式空泛追问）。'}",
-      "probingQuestion": "能举个当时的具体例子/那个瞬间发生了什么？\\n那一刻你的第一反应是什么？对你意味着什么？\\n这具体改变了你后续的什么选择或行为？"${isFGD && fgdInteraction ? `,
+      "title": "${ex.title1}",
+      "duration": "${durPlaceholder}",
+      "questions": ["${ex.q1}", "${ex.q2}"],
+      "notes": "${ex.notes}",
+      "probingQuestion": "${ex.probe}",
+      "isCore": false
+    },
+    {
+      "id": 2,
+      "title": "${ex.title2}",
+      "duration": "${durPlaceholder}",
+      "questions": ["${ex.q1}", "${ex.q2}", "${ex.q3}"],
+      "notes": "${isFGD ? ex.notesFgd : (ex.notesCore ?? ex.notes)}",
+      "probingQuestion": "${ex.probe2}"${isFGD && fgdInteraction ? `,
       "interactionType": "${fgdInteraction.type}",
-      "discussionTask": "${fgdInteraction.task}"` : ''}
+      "discussionTask": "${fgdInteraction.task}",
+      "consensusChallengeTask": "${ex.consensus}"` : ''},
+      "behavioralEvidenceTask": "${ex.evidence}",
+      "isCore": true
     }
   ]
 }
 
-说明：每个环节必须包含 probingQuestion（2-3条追问，用换行分隔），严禁单句“为什么”。notes 须含研究目的、观察点、追问话术。${isFGD ? '环节 2 须设 interactionType、discussionTask。' : ''}`;
+说明：probingQuestion 须严格按 Action → Feeling → Motivation 递进；至少一个核心环节设 behavioralEvidenceTask（IDI 用「请你」，FGD 用「请大家」）；isCore 环节 probingQuestion 不少于 3 组且含互动任务。${isFGD ? 'FGD 必须自动生成 consensusChallengeTask（⚡ 冲突点挑战）；环节 2 须设 interactionType、discussionTask、consensusChallengeTask。' : ''}${studyType === 'experience' ? ' Experience 类型必须自动生成 behavioralEvidenceTask（📷 证物展示）模块。' : ''}`;
 
     return `${systemPrompt}${languageDirective}\n\n${userPrompt}`;
   }

@@ -1,0 +1,736 @@
+import Groq from "groq-sdk";
+
+// 大纲数据接口
+export interface OutlineData {
+  project_title: string;
+  sections: Array<{
+    id?: number;
+    title: string;
+    duration: string;
+    questions: string[];
+    notes: string;
+  }>;
+}
+
+// 生成参数接口
+export interface GenerateParams {
+  researchTopic: string;
+  targetAudience: string;
+  researchPurpose: string;
+  interviewType: 'IDI' | 'FGD';
+  interviewDuration: string;
+  selectedTemplate: 'basic' | 'comprehensive';
+  systemPrompt?: string; // 新增：完整的SYSTEM_PROMPT
+  outputLanguage?: string; // 新增：语言偏好
+  enhancedMode?: boolean; // 新增：增强模式
+  studyType?: StudyType; // 新增：研究类型（可选，默认 auto）
+}
+
+export type StudyType =
+  | 'auto'
+  | 'journey'
+  | 'competitive'
+  | 'experience'
+  | 'persona'
+  | 'concept'
+  | 'pricing'
+  | 'brand'
+  | 'ux';
+
+class GroqService {
+  private groq: Groq | null = null;
+
+  constructor() {
+    this.initializeClient();
+  }
+
+  get client() {
+    return this.groq;
+  }
+
+  private initializeClient() {
+    const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY;
+    console.log('=== Groq Service Environment Variable Check ===');
+    console.log('NEXT_PUBLIC_GROQ_API_KEY exists:', !!apiKey);
+    console.log('NEXT_PUBLIC_GROQ_API_KEY length:', apiKey?.length || 0);
+    
+    if (!apiKey) {
+      console.error('NEXT_PUBLIC_GROQ_API_KEY is not configured in groq.ts');
+      return;
+    }
+    this.groq = new Groq({ apiKey, dangerouslyAllowBrowser: true });
+    console.log('✅ Groq service client initialized successfully');
+  }
+
+  async generateOutline(params: GenerateParams): Promise<OutlineData> {
+    if (!this.groq) {
+      console.error('Groq client not initialized');
+      throw new Error('Groq API客户端未初始化，请检查API Key配置');
+    }
+
+    try {
+      // 使用传入的SYSTEM_PROMPT或默认prompt
+      const systemPrompt = params.systemPrompt || "你是一位资深的市场研究专家，拥有15年以上的定性研究经验。请严格按照JSON格式返回结果，不要添加任何额外的解释或格式。";
+      
+      const userPrompt = this.buildEnhancedPrompt(params);
+
+      const result = await this.groq.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt
+          },
+          {
+            role: "user", 
+            content: userPrompt
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+        top_p: 0.8,
+        max_tokens: 8192,
+      });
+
+      const text = result.choices[0]?.message?.content || '';
+
+      // Parse the JSON response
+      let outlineData: OutlineData;
+      try {
+        outlineData = JSON.parse(text);
+        console.log('✅ Successfully generated outline with Groq API');
+      } catch (parseError) {
+        console.error('Failed to parse AI response as JSON:', parseError);
+        console.error('Raw response:', text);
+        throw new Error(`AI响应解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`);
+      }
+
+      return outlineData;
+
+    } catch (error: any) {
+      console.error('Groq API error:', error);
+      
+      // 不再使用Mock数据fallback，直接抛出错误
+      if (error.message?.includes('quota') || error.message?.includes('429') || error.message?.includes('rate limit')) {
+        throw new Error('API配额已用完，请检查API Key或稍后重试');
+      } else if (error.message?.includes('API Key') || error.message?.includes('unauthorized')) {
+        throw new Error('API Key无效，请检查环境变量配置');
+      } else if (error.message?.includes('timeout')) {
+        throw new Error('API请求超时，请稍后重试');
+      } else {
+        throw new Error(`Groq API调用失败: ${error.message}`);
+      }
+    }
+  }
+
+  private detectStudyType(researchTopic: string, researchPurpose: string): Exclude<StudyType, 'auto'> {
+    const text = `${researchTopic} ${researchPurpose}`.toLowerCase();
+
+    const hasAny = (keywords: string[]) => keywords.some((k) => text.includes(k));
+
+    const journeyKeywords = [
+      'journey',
+      'customer journey',
+      'user journey',
+      'end-to-end',
+      'end to end',
+      'touchpoint',
+      'experience',
+      'service flow',
+      'path to purchase',
+      'purchase journey',
+      '转化路径',
+      '用户旅程',
+      '客户旅程',
+      '服务流程',
+      '体验流程',
+      '触点',
+      '到店',
+      '进站',
+      '离站'
+    ];
+
+    const competitiveKeywords = [
+      'competitor',
+      'competitive',
+      'comparison',
+      'compare',
+      'vs',
+      'switch',
+      'switching',
+      'alternative',
+      'choice',
+      'tradeoff',
+      '竞品',
+      '对比',
+      '比较',
+      '替代',
+      '切换',
+      '为什么选',
+      '为什么不选'
+    ];
+
+    const experienceKeywords = [
+      'satisfaction',
+      'dissatisfaction',
+      'complaint',
+      'service quality',
+      'experience diagnosis',
+      'csat',
+      'nps',
+      '满意',
+      '不满',
+      '抱怨',
+      '投诉',
+      '体验诊断',
+      '服务质量'
+    ];
+
+    const personaKeywords = [
+      'persona',
+      'segmentation',
+      'segment',
+      'archetype',
+      'typology',
+      'user profile',
+      '画像',
+      '用户画像',
+      '人群',
+      '细分',
+      '分群',
+      '人群差异'
+    ];
+
+    const conceptKeywords = [
+      'concept',
+      'proposition',
+      'value proposition',
+      'concept test',
+      'idea test',
+      'message test',
+      'concept testing',
+      '概念',
+      '概念测试',
+      '方案',
+      '主张',
+      '卖点',
+      '宣传语'
+    ];
+
+    const pricingKeywords = [
+      'pricing',
+      'price',
+      'willingness to pay',
+      'wtp',
+      'value',
+      'package',
+      'subscription',
+      '付费',
+      '价格',
+      '定价',
+      '套餐',
+      '会员',
+      '值不值',
+      '贵',
+      '便宜'
+    ];
+
+    const brandKeywords = [
+      'brand',
+      'branding',
+      'brand equity',
+      'positioning',
+      'communication',
+      'advertising',
+      'ad',
+      'campaign',
+      '品牌',
+      '心智',
+      '传播',
+      '广告',
+      '定位',
+      '认知'
+    ];
+
+    const uxKeywords = [
+      'ux',
+      'usability',
+      'user experience',
+      'ui',
+      'interaction',
+      'onboarding',
+      'signup',
+      'checkout',
+      'task',
+      '可用性',
+      '易用性',
+      '交互',
+      '新手引导',
+      '注册',
+      '登录',
+      '下单',
+      '支付'
+    ];
+
+    if (hasAny(journeyKeywords)) return 'journey';
+    if (hasAny(uxKeywords)) return 'ux';
+    if (hasAny(pricingKeywords)) return 'pricing';
+    if (hasAny(conceptKeywords)) return 'concept';
+    if (hasAny(competitiveKeywords)) return 'competitive';
+    if (hasAny(experienceKeywords)) return 'experience';
+    if (hasAny(personaKeywords)) return 'persona';
+    if (hasAny(brandKeywords)) return 'brand';
+
+    return 'experience';
+  }
+
+  private buildSystemGuide(studyType: Exclude<StudyType, 'auto'>, interviewType: 'IDI' | 'FGD'): string {
+    const isFGD = interviewType === 'FGD';
+    const common = `
+你是一名来自顶尖市场研究咨询公司（如 Ipsos, Kantar）的定性研究总监。你的任务是根据给定的【研究课题】，设计一份专业的访谈讨论大纲（Discussion Guide）。
+
+### ⚠️ 绝对要求 (CRITICAL RULES) ⚠️
+- 必须围绕研究课题与真实生活场景展开，不要套用固定模板。
+- 问题必须口语化、可回答、基于回忆具体经历（优先问"上一次/最近一次/某一次具体发生了什么"）。
+- 避免抽象词：不要出现"画像/维度/痛点/满意度/NPS/功能改进"等术语；如需衡量，用"为什么这么想/具体哪里让你觉得好或不舒服/当时你怎么判断"等表达。
+- 每个大问题后给出 2-4 条追问（probe），用于深挖行为、动机、情绪、决策依据、触点、例外场景。
+- 输出必须严格为 JSON（json_object），不要添加解释性文字。
+${isFGD ? `
+### 🧑‍🤝‍🧑 FGD 焦点小组专属要求
+- **提问风格强制转换**：禁用所有"您个人觉得"的开头，强制使用群体导向提问：
+  - "大家看到这个的第一反应是？"
+  - "有没有人持有完全相反的意见？"
+  - "请大家投票选出最触动你的点"
+  - "在座各位怎么看？"
+  - "谁和刚才那位想法不一样？"
+  - "有没有人想补充或反驳？"
+- **互动任务要求**：必须包含具体的互动任务，使用对应图标标识
+` : ''}
+`;
+
+    const fgdInteractiveTasks: Partial<Record<Exclude<StudyType, 'auto'>, string>> = {
+      journey: `
+### 🎨 FGD 旅程研究专属互动任务
+- **集体回忆绘图**：提供大张白纸，让组员分组绘制完整的用户旅程图，包括触点、情绪曲线、决策点。
+- **触点投票**：让组员用贴纸在旅程图上标记"最满意/最不满意"的触点，并解释原因。
+- **例外场景讨论**：针对旅程中的关键环节，讨论"赶时间/夜间/带娃"等场景下的差异。
+`,
+      competitive: `
+### ⚔️ FGD 竞品研究专属互动任务
+- **模拟辩论**：将组员分为不同阵营，代表不同品牌/方案的支持者，进行结构化辩论。
+- **选择理由排序**：让组员对选择因素进行排序并讨论差异，找出"deal-breaker"。
+- **阵营切换讨论**：让组员讨论什么情况下会从当前选择切换到竞品。
+`,
+      concept: `
+### 💡 FGD 概念测试专属互动任务
+- **方案共创**：提供概念原型，让组员分组进行"加减法"优化，提出改进建议。
+- **使用场景匹配**：让组员将概念卡片与使用场景进行匹配，解释匹配逻辑。
+- **担忧与期待投票**：匿名写下对概念的担忧和期待，然后集体讨论。
+`,
+      pricing: `
+### 💰 FGD 定价研究专属互动任务
+- **预算分配博弈**：给组员虚拟预算，在不同功能/服务间进行分配，并解释决策逻辑。
+- **价值锚点讨论**：让组员讨论什么因素决定了他们心中的"合理价格"。
+- **付费门槛投票**：对不同的付费场景进行投票，找出触发付费的关键因素。
+`,
+      experience: `
+### 🩺 FGD 体验诊断专属互动任务
+- **情绪曲线绘制**：让组员绘制体验过程中的情绪曲线，标注关键转折点。
+- **关键时刻投票**：让组员投票选出体验中的"关键时刻"并深入讨论。
+- **改进方案共创**：针对体验痛点，让组员分组提出改进方案。
+`,
+      persona: `
+### 👤 FGD 画像研究专属互动任务
+- **人物卡片匹配**：提供不同人物卡片，让组员匹配自己最像的并解释差异。
+- **场景角色扮演**：让组员在不同场景下扮演典型用户，展示行为差异。
+- **价值排序讨论**：让组员对价值要素进行排序，讨论人群分化原因。
+`,
+      brand: `
+### 📣 FGD 品牌研究专属互动任务
+- **品牌拟人化**：让组员用拟人化方式描述品牌（性格、穿着、说话方式）。
+- **品牌联想词云**：集体生成品牌联想词，讨论共同点和差异点。
+- **信息解码讨论**：展示品牌传播材料，讨论不同人群的理解差异。
+`,
+      ux: `
+### 🧩 FGD 可用性研究专属互动任务
+- **任务流程重排**：让组员重新排列任务步骤，讨论最优流程。
+- **痛点贴图**：在界面上用贴纸标记痛点位置，集体讨论解决方案。
+- **心智模型对比**：让组员画出"以为的流程"vs"实际的流程"，讨论差异。
+`
+    };
+
+    const fgdTaskBlock = isFGD ? (fgdInteractiveTasks[studyType] || '') : '';
+
+    if (studyType === 'journey') {
+      return `${common}
+### 🧭 旅程研究结构要求 (Customer Journey)
+- 以"阶段（phase）"组织大纲，至少覆盖：
+  1) 触发/准备（Before）
+  2) 现场体验（During）
+  3) 事后回想与复购（After）
+- 每个阶段必须覆盖：
+  - 关键行为（做了什么）
+  - 决策点（为什么这么选）
+  - 情绪/顾虑（担心什么）
+  - 触点（人/设备/空间/标识/数字触点/支付/会员等）
+  - 例外场景（赶时间、排队、夜间、雨天、带娃、车队等）
+${fgdTaskBlock}`;
+    }
+
+    if (studyType === 'competitive') {
+      return `${common}
+### 🥊 竞品/选择/切换研究结构要求 (Competitive Choice)
+- 强制围绕一次"真实选择/对比/切换"的时间线复盘：
+  - 触发需求 → 考虑集（还考虑了谁） → 淘汰路径（为什么被淘汰） → 最终选择（关键证据） → 使用后验证（是否后悔/会不会换）。
+- 必须挖掘"取舍"与"不可接受项"（deal-breaker），不要问泛泛偏好。
+${fgdTaskBlock}`;
+    }
+
+    if (studyType === 'experience') {
+      return `${common}
+### 🩺 体验诊断结构要求 (Experience Diagnostic)
+- 以"预期→实际体验→关键时刻→原因追溯→补救/投诉→复购/流失触发点"组织。
+- 要把好/不好的感受落到具体触点与细节（当时发生了什么）。
+${fgdTaskBlock}`;
+    }
+
+    if (studyType === 'persona') {
+      return `${common}
+### 👤 画像/细分结构要求 (Persona / Segmentation)
+- 目标不是贴标签，而是找到"动机/场景/取舍"的分化方式。
+- 必须包含：生活/工作节奏、触发情境、价值取舍、典型一次经历、语言与隐喻。
+${fgdTaskBlock}`;
+    }
+
+    if (studyType === 'concept') {
+      return `${common}
+### 💡 概念/方案测试结构要求 (Concept Test)
+- 先测"理解"（你理解它是什么、怎么用）再测"价值"（为什么对你有用）再测"可信/风险"（担心什么）。
+- 必须包含：对比现有替代方案、使用场景落地、触发与阻碍。
+${fgdTaskBlock}`;
+    }
+
+    if (studyType === 'pricing') {
+      return `${common}
+### 💰 定价/价值感结构要求 (Pricing / Value)
+- 不要直接问"你愿意付多少钱"，而要挖：价值锚点、心理账户、贵/值的证据、付费触发条件、阻碍条件、套餐取舍。
+${fgdTaskBlock}`;
+    }
+
+    if (studyType === 'brand') {
+      return `${common}
+### 📣 品牌/传播结构要求 (Brand / Communication)
+- 重点是"联想/情绪/角色/可信度/语言解码"，而不是满意度。
+- 必须包含：类别角色、品牌联想、信息理解偏差、与生活场景/人群的匹配。
+${fgdTaskBlock}`;
+    }
+
+    if (studyType === 'ux') {
+      return `${common}
+### 🧩 可用性/任务研究结构要求 (UX / Usability)
+- 以"任务"组织：目标任务 → 步骤复盘 → 卡点与误解 → 容错与恢复 → 与其他工具对比。
+- 必须挖"心智模型"：你以为它会怎么工作。
+${fgdTaskBlock}`;
+    }
+
+    return `${common}`;
+  }
+
+  private buildEnhancedPrompt(params: GenerateParams): string {
+    const { researchTopic, targetAudience, researchPurpose, interviewType, interviewDuration } = params;
+
+    // 实体清洗 - 提取核心业务话题
+    const coreTopic = this.extractCoreTopic(researchTopic);
+
+    const studyType: Exclude<StudyType, 'auto'> = (params.studyType && params.studyType !== 'auto')
+      ? params.studyType
+      : this.detectStudyType(researchTopic, researchPurpose);
+    const systemPrompt = this.buildSystemGuide(studyType, interviewType);
+
+    const studyHintsByType: Partial<Record<Exclude<StudyType, 'auto'>, string>> = {
+      journey: `\n- 研究类型提示：这是一个"旅程/流程/触点"研究。请按阶段拆分，确保每段都能串成端到端经历。\n`,
+      competitive: `\n- 研究类型提示：这是一个"竞品/选择/切换"研究。请围绕一次真实选择/切换复盘，输出取舍与证据。\n`,
+      experience: `\n- 研究类型提示：这是一个"体验诊断"研究。请从预期到实际体验复盘关键时刻，并追溯原因到具体触点。\n`,
+      persona: `\n- 研究类型提示：这是一个"画像/细分"研究。请围绕动机、场景、取舍与语言隐喻来分化人群。\n`,
+      concept: `\n- 研究类型提示：这是一个"概念/方案测试"。先测理解，再测价值，再测可信与风险，必须落到具体场景。\n`,
+      pricing: `\n- 研究类型提示：这是一个"定价/价值感"研究。避免直接要价格，聚焦价值锚点、付费门槛与触发条件。\n`,
+      brand: `\n- 研究类型提示：这是一个"品牌/传播"研究。聚焦联想、情绪、角色与信息解码，不要用满意度术语。\n`,
+      ux: `\n- 研究类型提示：这是一个"可用性/任务"研究。按任务步骤复盘，找卡点、误解与心智模型。\n`,
+    };
+    const studyHints = studyHintsByType[studyType] || '';
+
+    const isFGD = interviewType === 'FGD';
+    const studyTypeLabel: Record<Exclude<StudyType, 'auto'>, string> = {
+      journey: '旅程/流程/触点',
+      competitive: '竞品/选择/切换',
+      experience: '体验诊断',
+      persona: '画像/细分',
+      concept: '概念/方案测试',
+      pricing: '定价/价值感',
+      brand: '品牌/传播',
+      ux: '可用性/任务',
+    };
+    const currentStudyLabel = studyTypeLabel[studyType];
+    
+    // FGD 专属时长分配逻辑
+    const durationAllocation = isFGD ? this.generateFGDDurationAllocation(interviewDuration, studyType) : '';
+    
+    const fgdBlock = isFGD ? `
+
+### 🧑‍🤝‍🧑 FGD 焦点小组专属要求 (Focus Group Discussion)
+- **FGD 与 IDI 使用相同的 8 类定性研究**（旅程/竞品/体验诊断/画像/概念/定价/品牌/UX）。**当前研究类型为「${currentStudyLabel}」**，大纲的**内容与逻辑必须严格按该类型**（如画像则聚焦动机、场景、取舍、语言隐喻；定价则聚焦价值锚点与付费门槛），**不得因 FGD 而改写成其他类型**（例如：用户选的是画像/用户画像，则不要写成价格或满意度研究）。
+- **FGD 仅在此基础上叠加"群体讨论"的环节与话术**：问题从"你觉得"改为"大家觉得""在座各位怎么看""有没有人有不同意见""谁和刚才那位想法不一样"。
+- **必须包含的环节**：
+  1) **暖场与破冰（约 15 分钟）**：设计让组员互相认识的互动（如每人一句话介绍自己与话题的关系，或两两配对代对方发言）。
+  2) **群体观点碰撞**：在研究问题中加入 **2–3 个"讨论触发点"**（如对 A/B/C 方案投票并陈述理由，或"不同意刚才观点的朋友举手说说理由"）。
+  3) **共识与差异总结**：结尾增加讨论环节，归纳"大家共同点"与"分歧点"，探索需求公约数。
+- **禁止诱导性满意度问法**：严禁使用"是不是太好/太差/太贵/太便宜"这类封闭式、带强烈立场的问法；优先用场景投射式、比喻式、联想式提问（例如："如果用一个形容词/画面来形容你对售后的感觉，会是什么？"），把"好不好"拆解为"在什么情境下、发生了什么、对你意味着什么"。
+- **为每个关键研究点设计互动触发任务**：不仅给出口头问题，还要为重要研究点至少设计一个具体的"讨论任务"（例如：让组员在白板上为不同触点贴笑脸或哭脸，再围绕贴纸位置展开讨论），避免全场只是轮流发言。
+- **强化追问而非打分**：定性研究不需要"几分"，而是需要"为什么"。每个主问题后必须在 notes 中给出 1–3 条追问路径（例如："当时第一反应是什么？""这个细节具体改变了你后续的选择/忠诚度吗？"），引导主持人深挖原因而不是停在表态。
+- **突出群体冲突点**：在观点碰撞与总结环节，鼓励主持人刻意点出不同意见并抛给全组讨论（如："A 觉得售后很贴心，B 觉得被打扰了，其他人更靠近哪一边？为什么？"），帮助识别真正有洞察力的分歧。
+- **允许使用品牌拟人化等高级比喻**：在适合的研究类型（如品牌、体验、画像）下，可以引导组员用拟人化方式描述品牌/服务（例如："如果小米售后是一位人，他会穿什么样的衣服、说话语气如何？更像是随叫随到的管家，还是机械执行任务的工人？"），以拉开不同品牌/体验之间的感官差异。
+- **备注说明 (notes)**：每个环节的 notes 须包含清晰的研究目的、观察点，以及至少一条以"技巧"开头的主持人操作建议（如：观察边缘化组员并邀请发言；若一边倒可追问"有没有人持不同看法"）。
+- **时长建议**：FGD 建议 90–120 分钟；若用户总时长不足 90 分钟，可在 notes 中提醒"FGD 建议 90–120 分钟效果更佳"。
+${durationAllocation}
+` : '';
+        return `\n### 🌐 Output Language Requirement\n- All content in the JSON values must be written in English.\n- Do not include any Chinese characters.\n`;
+      }
+      if (outputLanguage === '日文') {
+        return `\n### 🌐 出力言語要件\n- JSON の値の文章はすべて日本語で書いてください。\n- 中国語（簡体字/繁体字）を含めないでください。\n`;
+      }
+      if (outputLanguage === '双语对照') {
+        return `\n### 🌐 双语对照输出要求\n- 每一条问题都输出为“中文 / English”同一行对照格式，例如：\n  - "你上一次来这里加油时发生了什么？ / What happened the last time you refueled here?"\n- notes 也使用同样的双语对照格式。\n`;
+      }
+      return '';
+    })();
+
+    const userPrompt = `
+请生成以下访谈大纲：
+- 研究课题：${researchTopic}
+- 核心话题：${coreTopic}
+- 研究类型（与 IDI/FGD 共用）：${currentStudyLabel} — 大纲内容（环节主题、问题方向）必须严格围绕该类型及上述课题/目标，不得偏离。
+- 访谈类型：${interviewType}${isFGD ? '（焦点小组：在满足上述研究类型的前提下，叠加暖场破冰、讨论触发点、共识与差异总结；问题用“大家觉得”“有没有人有不同意见”）' : ''}
+- 目标人群：${targetAudience}
+- 研究目标：${researchPurpose}
+- 总时长：${interviewDuration} 分钟
+${studyHints}
+${fgdBlock}
+
+当前选择的输出语言：${outputLanguage}
+
+请严格按照以下JSON格式返回：
+
+{
+  "project_title": "${coreTopic} - Discussion Guide (${interviewType})",
+  "sections": [
+    {
+      "id": 1,
+      "title": "环节标题",
+      "duration": "XX分钟",
+      "questions": [
+        "具体问题1",
+        "具体问题2",
+        "具体问题3"
+      ],
+      "notes": "${isFGD ? '该环节的研究目的、观察点与追问提示。💡 技巧：主持人操作建议（例如：观察边缘化组员并邀请发言）。' : '该环节的研究目的、观察点与追问提示（probe）'}"
+    }
+  ]
+}`;
+
+    return `${systemPrompt}${languageDirective}\n\n${userPrompt}`;
+  }
+
+  private extractCoreTopic(researchTopic: string): string {
+    // 提取核心业务话题，移除研究方法相关后缀
+    const suffixesToRemove = [
+      '用户画像',
+      '用户细分', 
+      '访谈大纲',
+      '深度访谈',
+      '消费者研究',
+      '市场调研',
+      '体验研究',
+      '用户研究',
+      '产品研究',
+      '品牌研究',
+      '购买行为研究',
+      '消费动机研究'
+    ];
+    
+    let cleanedTopic = researchTopic.trim();
+    
+    // 移除所有后缀
+    for (const suffix of suffixesToRemove) {
+      if (cleanedTopic.endsWith(suffix)) {
+        cleanedTopic = cleanedTopic.slice(0, -suffix.length).trim();
+        break; // 只移除一个后缀
+      }
+    }
+    
+    return cleanedTopic || researchTopic;
+  }
+
+  private generateFGDDurationAllocation(totalDuration: string, studyType: Exclude<StudyType, 'auto'>): string {
+    const duration = parseInt(totalDuration);
+    if (isNaN(duration) || duration < 30) return '';
+
+    // FGD 核心互动环节（环节2）占据总时长的 60% 以上
+    const coreInteractionMinutes = Math.max(Math.floor(duration * 0.6), 45);
+    const remainingMinutes = duration - coreInteractionMinutes;
+    
+    // 暖场与总结各占剩余时间的一半
+    const warmupMinutes = Math.floor(remainingMinutes * 0.4);
+    const summaryMinutes = Math.floor(remainingMinutes * 0.6);
+
+    const taskIcons: Record<Exclude<StudyType, 'auto'>, string> = {
+      journey: '🎨',
+      competitive: '⚔️',
+      concept: '💡',
+      pricing: '💰',
+      experience: '🩺',
+      persona: '👤',
+      brand: '📣',
+      ux: '🧩'
+    };
+
+    const taskIcon = taskIcons[studyType] || '📝';
+
+    return `
+### ⏱️ FGD 时长分配建议 (${duration}分钟)
+- **暖场与破冰**：${warmupMinutes}分钟 (${Math.round(warmupMinutes/duration*100)}%) - 让组员互相认识，建立安全氛围
+- **核心互动环节**：${coreInteractionMinutes}分钟 (${Math.round(coreInteractionMinutes/duration*100)}%) ${taskIcon} - 包含群体讨论任务、观点碰撞、深度互动
+- **共识与差异总结**：${summaryMinutes}分钟 (${Math.round(summaryMinutes/duration*100)}%) - 归纳共同点与分歧点，探索需求公约数
+
+💡 **提示**：核心互动环节是FGD的价值核心，确保充分时间进行群体互动和深度讨论。`;
+  }
+    const { researchTopic, targetAudience, researchPurpose, interviewType, interviewDuration } = params;
+    
+    // 改进的时长分配逻辑
+    let durations: number[];
+    const totalDuration = parseInt(interviewDuration);
+    
+    if (totalDuration <= 10) {
+      // 短访谈（10分钟以内）：简化分配
+      durations = [
+        1, // Intro & Ground Rules
+        1, // Warm-up/Icebreaker  
+        2, // Main Discussion - 广度感知
+        totalDuration - 4, // Main Discussion - 深度探索（剩余时间）
+        0, // Main Discussion - 反思与影响（跳过）
+        0  // 总结与收尾（跳过）
+      ];
+    } else if (totalDuration <= 30) {
+      // 中等访谈（10-30分钟）：标准分配
+      const introDuration = Math.max(2, Math.floor(totalDuration * 0.15));
+      const warmupDuration = Math.max(2, Math.floor(totalDuration * 0.10));
+      const breadthDuration = Math.max(3, Math.floor(totalDuration * 0.25));
+      const depthDuration = Math.max(4, Math.floor(totalDuration * 0.35));
+      const reflectionDuration = Math.max(2, Math.floor(totalDuration * 0.10));
+      const summaryDuration = totalDuration - introDuration - warmupDuration - breadthDuration - depthDuration - reflectionDuration;
+      
+      durations = [introDuration, warmupDuration, breadthDuration, depthDuration, reflectionDuration, Math.max(1, summaryDuration)];
+    } else {
+      // 长访谈（30分钟以上）：详细分配
+      const introDuration = Math.max(3, Math.floor(totalDuration * 0.10));
+      const warmupDuration = Math.max(3, Math.floor(totalDuration * 0.10));
+      const breadthDuration = Math.max(5, Math.floor(totalDuration * 0.20));
+      const depthDuration = Math.max(8, Math.floor(totalDuration * 0.30));
+      const reflectionDuration = Math.max(4, Math.floor(totalDuration * 0.15));
+      const summaryDuration = totalDuration - introDuration - warmupDuration - breadthDuration - depthDuration - reflectionDuration;
+      
+      durations = [introDuration, warmupDuration, breadthDuration, depthDuration, reflectionDuration, Math.max(3, summaryDuration)];
+    }
+
+    // 确保总时长匹配
+    const totalAllocated = durations.reduce((sum, duration) => sum + duration, 0);
+    if (totalAllocated !== totalDuration) {
+      durations[durations.length - 1] += totalDuration - totalAllocated;
+    }
+
+    return {
+      project_title: `${researchTopic} - 深度研究报告 (${interviewType})`,
+      sections: [
+        {
+          id: 1,
+          title: "Intro & Ground Rules",
+          duration: `${durations[0]}分钟`,
+          questions: [
+            `欢迎参与本次${interviewType === 'IDI' ? '深度访谈' : '焦点小组讨论'}。首先请允许我说明几点：今天的讨论没有对错之分，我们希望听到真实的想法；讨论过程将被录音，仅用于研究分析；请尊重其他参与者的发言。大家同意吗？`,
+            "请简单介绍一下自己，以及与这个话题相关的背景或经历。",
+            `为什么愿意花时间参与今天关于${researchTopic}的讨论？`
+          ],
+          notes: "建立讨论规则和信任氛围，让受访者放松"
+        },
+        {
+          id: 2,
+          title: "Warm-up/Icebreaker",
+          duration: `${durations[1]}分钟`,
+          questions: [
+            `请描述您第一次接触${researchTopic}时的情景或感受。`,
+            `如果用一种颜色来形容${researchTopic}，您会选择什么？为什么？`,
+            `请分享一个与${researchTopic}相关的有趣故事或经历。`
+          ],
+          notes: durations[1] > 0 ? "轻松的破冰话题，帮助受访者进入状态" : "时间紧张，可简化或跳过"
+        },
+        {
+          id: 3,
+          title: "Main Discussion - 广度感知",
+          duration: `${durations[2]}分钟`,
+          questions: [
+            `提到${researchTopic}，您首先想到什么？请描述具体的画面或场景。`,
+            `${researchTopic}在您的生活或工作中扮演什么角色？`,
+            `请描述您使用或接触${researchTopic}的典型场景。`,
+            `如果${researchTopic}突然消失，会对您产生什么影响？`
+          ],
+          notes: durations[2] > 0 ? "从宏观角度了解整体认知和态度" : "时间紧张，可合并到深度探索环节"
+        },
+        {
+          id: 4,
+          title: "Main Discussion - 深度探索",
+          duration: `${durations[3]}分钟`,
+          questions: [
+            `请详细描述最近一次与${researchTopic}相关的完整经历。`,
+            `哪些因素最影响您对${researchTopic}的满意度？为什么？`,
+            `请回忆一个让您印象深刻的${researchTopic}相关经历。`,
+            `如果让您改进${researchTopic}，您会选择什么？如何改进？`
+          ],
+          notes: "深入挖掘具体体验、决策逻辑和潜在需求"
+        },
+        {
+          id: 5,
+          title: "Main Discussion - 反思与影响",
+          duration: `${durations[4]}分钟`,
+          questions: durations[4] > 0 ? [
+            `${researchTopic}如何改变了您的某些习惯或观念？`,
+            `请描述${researchTopic}对您生活的具体影响。`,
+            `如果时间可以倒流，您会在${researchTopic}相关的事情上做出不同选择吗？`,
+            `请设想5年后，您希望${researchTopic}变成什么样子？`
+          ] : [
+            `简要谈谈${researchTopic}对您的影响或改变。`
+          ],
+          notes: durations[4] > 0 ? "引导深度反思，探讨长期影响和未来期望" : "时间紧张，简要提及即可"
+        },
+        {
+          id: 6,
+          title: "总结与收尾",
+          duration: `${durations[5]}分钟`,
+          questions: durations[5] > 0 ? [
+            `用三个词总结您对${researchTopic}的感受。`,
+            `通过今天的讨论，我们达成了什么共识？`,
+            `关于${researchPurpose}，您还有什么补充建议吗？`,
+            `对于研究团队，您有什么建议或期望？`
+          ] : [
+            `请简单总结一下今天的讨论。`
+          ],
+          notes: durations[5] > 0 ? "总结关键洞察，确认重要发现，感谢参与者" : "快速总结，感谢参与"
+        }
+      ].filter(section => parseInt(section.duration) > 0) // 过滤掉时长为0的环节
+    };
+  }
+}
+
+// Export singleton instance
+export const groqService = new GroqService();
+
+// Export the function for backward compatibility
+export const generateOutline = (params: GenerateParams) => groqService.generateOutline(params);
