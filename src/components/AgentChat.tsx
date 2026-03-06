@@ -76,7 +76,7 @@ export default function AgentChat({
   onApplySuggestion,
   compact = false
 }: AgentChatProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   // 对话状态
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
@@ -193,7 +193,9 @@ export default function AgentChat({
 
       // 如果缺少上下文，先追问澄清，避免"牛头不对马嘴"
       if (activeWorkbench === 'outline' && !hasOutlineContext && !hasResearchContext) {
-        responseContent = `为了更精准回答，我需要一点背景信息：\n\n1) 你的研究主题是什么？\n2) 目标受众是谁？\n3) 你想解决的核心问题/研究目的是什么？`;
+        responseContent = language === 'en'
+          ? `To answer accurately, I need a bit more context:\n\n1) What is your research topic?\n2) Who is your target audience?\n3) What is the core problem or research objective you want to solve?`
+          : `为了更精准回答，我需要一点背景信息：\n\n1) 你的研究主题是什么？\n2) 目标受众是谁？\n3) 你想解决的核心问题/研究目的是什么？`;
       } else {
         const toStr = (v: unknown): string => {
           if (v == null) return '';
@@ -236,7 +238,8 @@ ${analysisBlock}
             body: JSON.stringify({
               context: contextPrompt,
               message: messageText,
-              mode: 'expert'
+              mode: 'expert',
+              language
             }),
           });
 
@@ -255,13 +258,28 @@ ${analysisBlock}
           // 降级到本地启发式回复
           const message = messageText.toLowerCase();
           const outlineHint = outlineData?.sections?.length
-            ? `\n\n（我当前看到的大纲前两段是：${outlineData.sections
-                .slice(0, 2)
-                .map((s) => s.title)
-                .join(' / ')}）`
+            ? (language === 'en'
+                ? `\n\n(Top 2 sections I currently see: ${outlineData.sections
+                    .slice(0, 2)
+                    .map((s) => s.title)
+                    .join(' / ')})`
+                : `\n\n（我当前看到的大纲前两段是：${outlineData.sections
+                    .slice(0, 2)
+                    .map((s) => s.title)
+                    .join(' / ')}）`)
             : '';
 
-          if (message.includes('怎么问') || message.includes('提问') || message.includes('问题') || message.includes('追问')) {
+          if (language === 'en') {
+            if (message.includes('how to ask') || message.includes('question') || message.includes('probe')) {
+              responseContent = `I suggest using a "specific incident replay + probing ladder" structure:\n\n1) Start with a concrete recent moment:\n- "Can you walk me through the last time this happened?"\n2) Ask for decision logic:\n- "Why did you choose that at the time?"\n3) Probe feelings and details:\n- "Which step felt smooth or painful? Can you share one concrete detail?"\n4) Add comparison and exceptions:\n- "If the context changed (time pressure, queue, night), what would you do differently?"\n\nPaste one question you want to improve, and I can give you 3-5 stronger rewrites.${outlineHint}`;
+            } else if (message.includes('outline') || message.includes('structure') || message.includes('logic')) {
+              responseContent = `I recommend checking whether your guide has these four blocks:\n\n1) **Opening**: background + warm-up\n2) **Core journey**: progress by timeline/task/stage with behavior-decision-emotion-touchpoint-exception\n3) **Trade-offs**: alternatives/competitors and why chosen or rejected\n4) **Closing**: synthesis of top 1-2 insights + final additions\n\nIf you tell me your study type (journey/competitive/experience diagnostic) and desired output, I can rebalance section order and time allocation.${outlineHint}`;
+            } else if (message.includes('audience') || message.includes('user') || message.includes('sample') || message.includes('recruit')) {
+              responseContent = `Your current target audience is: ${targetAudience || '(not filled)'}\n\nTo improve sample quality, define these three dimensions clearly:\n1) **Behavior threshold**: recency/frequency (e.g., within last 2 weeks, 2+ times/month)\n2) **Experience level**: novice vs experienced\n3) **Key differences**: scenario differences (commute/long-distance/night/family/business)\n\nDo you want stronger representativeness or more extreme-case diagnosis? I can draft screening criteria accordingly.${outlineHint}`;
+            } else {
+              responseContent = `I can help in three ways for your current project (${researchTopic || 'no topic yet'}):\n\n1) Optimize guide structure and section timing\n2) Rewrite one section into more answerable, conversational questions with probes\n3) Define sharper audience and screening criteria\n\nTell me which one to start with (for example: "optimize questions in section 2").${outlineHint}`;
+            }
+          } else if (message.includes('怎么问') || message.includes('提问') || message.includes('问题') || message.includes('追问')) {
             responseContent = `我建议你把问题写成"具体经历复盘 + 追问梯子"的结构：\n\n1) 先让对方回忆最近一次：\n- "你上一次……当时发生了什么？"\n2) 再问决策依据：\n- "你当时为什么这样选？"\n3) 再挖感受与细节：\n- "哪一步让你觉得顺/不顺？能举个细节吗？"\n4) 再做对比与例外：\n- "如果换一种情况（赶时间/排队/夜间），你会怎么做？"\n\n你把你想优化的那一条问题贴出来，我可以直接给你 3-5 个更好的版本。${outlineHint}`;
           } else if (message.includes('大纲') || message.includes('结构') || message.includes('逻辑')) {
             responseContent = `我建议你检查大纲是否具备：\n\n1) **开场**：背景+破冰（让受访者进入状态）\n2) **核心链路**：按时间线/任务/阶段推进（每段都有行为-决策-情绪-触点-例外）\n3) **取舍**：与替代方案/竞品的对比（为什么选/为什么不选）\n4) **收尾**：总结验证（最重要的1-2点）+补充\n\n如果你告诉我你选的研究类型（旅程/竞品/体验诊断等）和你最关心的输出，我可以帮你把段落顺序和每段时长重新分配。${outlineHint}`;

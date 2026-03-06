@@ -119,9 +119,10 @@ const runTavilySearch = async (query: string): Promise<string | null> => {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { context, message, mode } = body;
+    const { context, message, mode, language } = body;
 
-    if (!groqService.client) {
+    const chatClient = groqService.client;
+    if (!chatClient) {
       return NextResponse.json(
         { error: 'Groq client not initialized' },
         { status: 500 }
@@ -149,8 +150,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const normalizeLanguage = (input?: string): 'zh' | 'en' | 'ja' => {
+      const value = (input || '').toLowerCase().trim();
+      if (['en', 'english', '英文'].includes(value)) return 'en';
+      if (['ja', 'jp', 'japanese', '日文', '日语'].includes(value)) return 'ja';
+      return 'zh';
+    };
+    const preferredLanguage = normalizeLanguage(language);
+    const languagePolicy =
+      preferredLanguage === 'en'
+        ? `\n### Language Policy\n- Reply in English only.\n- Do not output Chinese.\n`
+        : preferredLanguage === 'ja'
+          ? `\n### 言語ポリシー\n- 回答は日本語のみで出力してください。\n- 中国語を出力しないでください。\n`
+          : `\n### 语言策略\n- 回答使用中文。\n`;
+
     // 构建系统提示词：从“闲聊”转向“简报式决策支持”
-    const systemPrompt = `你是一名来自顶尖市场研究咨询公司（如 Ipsos, Kantar）的定性研究总监。
+    const systemPromptZh = `你是一名来自顶尖市场研究咨询公司（如 Ipsos, Kantar）的定性研究总监。
 
 今天假定日期为 2026-03-03。
 
@@ -209,17 +224,50 @@ export async function POST(request: NextRequest) {
   2) **时长**（如 15分钟、20分钟）
   3) **具体问题**（2-5 条，每条为完整可问的句子）
   4) **备注**（研究目的、观察点）
-- 用户可点击「采纳建议并同步到大纲」按钮，系统会解析你的回答并追加到中间栏大纲。请确保问题表述完整、可直接用于访谈。`;
+- 用户可点击「采纳建议并同步到大纲」按钮，系统会解析你的回答并追加到中间栏大纲。请确保问题表述完整、可直接用于访谈。
+${languagePolicy}`;
 
-    const userPrompt = `【当前上下文】
-${enhancedContext}
+    const systemPromptEn = `You are a qualitative research director from a top-tier insights consultancy (e.g., Ipsos, Kantar).
 
-【用户问题】
-${message}
+Today is assumed to be 2026-03-03.
 
-请基于以上信息，以资深定性研究专家的身份回答。`;
+Core rules:
+- Answer based on provided context, optional web-search snippets, and user question.
+- Be specific and actionable. Avoid generic filler.
+- If information is insufficient, ask 1-3 clarifying questions first.
+- If user premise looks incorrect (e.g., unreleased or fictional model), politely flag uncertainty before proposing assumptions.
+- For outline optimization requests, provide practical interview-question rewrites and clear rationale.
+- Never output JSON in chat responses.
+- Keep response concise and structured when needed.
+- Reply in English only. Do not output Chinese.`;
 
-    const result = await groqService.client.chat.completions.create({
+    const systemPromptJa = `あなたはトップ市場調査会社（Ipsos、Kantar など）の定性調査ディレクターです。
+
+前提日付は 2026-03-03 です。
+
+ルール:
+- 提供された文脈、必要に応じた検索結果、ユーザー質問に基づいて回答してください。
+- 具体的かつ実行可能に回答し、抽象的な表現を避けてください。
+- 情報が不足している場合は、先に 1〜3 個の確認質問をしてください。
+- 前提が不確かな場合（未発売モデルなど）は、その不確実性を先に明示してください。
+- チャット回答で JSON は出力しないでください。
+- 回答は日本語のみで、中国語は出力しないでください。`;
+
+    const systemPrompt =
+      preferredLanguage === 'en'
+        ? systemPromptEn
+        : preferredLanguage === 'ja'
+          ? systemPromptJa
+          : systemPromptZh;
+
+    const userPrompt =
+      preferredLanguage === 'en'
+        ? `Current Context:\n${enhancedContext}\n\nUser Question:\n${message}\n\nPlease answer as a senior qualitative research expert.`
+        : preferredLanguage === 'ja'
+          ? `現在の文脈:\n${enhancedContext}\n\nユーザー質問:\n${message}\n\n上記に基づいて、上級の定性調査専門家として回答してください。`
+          : `【当前上下文】\n${enhancedContext}\n\n【用户问题】\n${message}\n\n请基于以上信息，以资深定性研究专家的身份回答。`;
+
+    const result = await chatClient.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: [
         {
@@ -236,7 +284,50 @@ ${message}
       max_tokens: 4096,
     });
 
-    const text = result?.choices?.[0]?.message?.content || '';
+    const containsCjk = (text: string): boolean => /[\u4e00-\u9fff]/.test(text || '');
+    const rewriteResponseIfNeeded = async (text: string, lang: 'zh' | 'en' | 'ja'): Promise<string> => {
+      if (!text) return text;
+      if (lang === 'en' && containsCjk(text)) {
+        const rewritten = await chatClient.chat.completions.create({
+          model: "llama-3.1-8b-instant",
+          messages: [
+            {
+              role: "system",
+              content: "Rewrite the following answer into professional English only. Keep all key meaning and structure. Do not output Chinese."
+            },
+            {
+              role: "user",
+              content: text
+            }
+          ],
+          temperature: 0.2,
+          max_tokens: 4096,
+        });
+        return (rewritten?.choices?.[0]?.message?.content || text).trim();
+      }
+      if (lang === 'ja' && containsCjk(text)) {
+        const rewritten = await chatClient.chat.completions.create({
+          model: "llama-3.1-8b-instant",
+          messages: [
+            {
+              role: "system",
+              content: "以下の回答を、自然で専門的な日本語に書き換えてください。意味と構成は維持し、中国語は出力しないでください。"
+            },
+            {
+              role: "user",
+              content: text
+            }
+          ],
+          temperature: 0.2,
+          max_tokens: 4096,
+        });
+        return (rewritten?.choices?.[0]?.message?.content || text).trim();
+      }
+      return text.trim();
+    };
+
+    const rawText = result?.choices?.[0]?.message?.content || '';
+    const text = await rewriteResponseIfNeeded(rawText, preferredLanguage);
 
     return NextResponse.json({
       answer: text.trim()
