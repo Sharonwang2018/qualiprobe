@@ -569,16 +569,12 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
   };
 
   useEffect(() => {
-    // 检查API密钥状态
     const checkApiKey = async () => {
       try {
-        const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY;
-        if (apiKey) {
-          setApiKeyStatus('ready');
-        } else {
-          setApiKeyStatus('error');
-        }
-      } catch (error) {
+        const res = await fetch('/api/check-groq');
+        const data = await res.json();
+        setApiKeyStatus(data.groqReady ? 'ready' : 'error');
+      } catch {
         setApiKeyStatus('error');
       }
     };

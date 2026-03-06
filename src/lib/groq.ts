@@ -58,16 +58,17 @@ class GroqService {
   }
 
   private initializeClient() {
-    const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY || process.env.NEXT_PUBLIC_GROQ_API_KEY;
     console.log('=== Groq Service Environment Variable Check ===');
-    console.log('NEXT_PUBLIC_GROQ_API_KEY exists:', !!apiKey);
-    console.log('NEXT_PUBLIC_GROQ_API_KEY length:', apiKey?.length || 0);
-    
+    console.log('GROQ_API_KEY exists:', !!process.env.GROQ_API_KEY);
+    console.log('NEXT_PUBLIC_GROQ_API_KEY exists:', !!process.env.NEXT_PUBLIC_GROQ_API_KEY);
+    console.log('apiKey length:', apiKey?.length || 0);
+
     if (!apiKey) {
-      console.error('NEXT_PUBLIC_GROQ_API_KEY is not configured in groq.ts');
+      console.error('GROQ_API_KEY or NEXT_PUBLIC_GROQ_API_KEY is not configured');
       return;
     }
-    this.groq = new Groq({ apiKey, dangerouslyAllowBrowser: true });
+    this.groq = new Groq({ apiKey, dangerouslyAllowBrowser: !!process.env.NEXT_PUBLIC_GROQ_API_KEY });
     console.log('✅ Groq service client initialized successfully');
   }
 
@@ -309,10 +310,11 @@ class GroqService {
 
 ### 追问逻辑算法 (Probing Algorithm) — Action → Feeling → Motivation
 - **严禁笼统评价类问题**：如“你觉得如何”“满意度如何”“有什么看法”等。
-- **所有 probingQuestion 必须严格遵循递进序列**：
-  1) **Level 1 (Action 行为)**：那 10 秒钟里，你的手在干什么？眼睛在看哪里？当时发生了什么？能举个具体例子/那个瞬间吗？
-  2) **Level 2 (Feeling 感受)**：那种感觉是「被打扰」还是「被忽视」？你当下的真实感受是什么？那一刻对你意味着什么？
-  3) **Level 3 (Motivation 动机)**：如果这种感觉持续发生，你会如何重新定义这个品牌？当实际表现与你的预期不符时，你如何调整了后续的操作/选择行为？
+- **probingQuestion 必须与研究类型严格匹配**：定价用定价追问、体验用体验追问、品牌用品牌追问；严禁套用通用模板（「那10秒钟」「被打扰/被忽视」仅适用于体验/触点类，定价研究禁用）。
+- **递进序列**（具体话术须随研究类型调整）：
+  1) Level 1 (Action)：还原当时的具体情境、动作、决策过程
+  2) Level 2 (Feeling)：挖出那一刻的真实感受、情绪触发点
+  3) Level 3 (Motivation)：追问后续行为、取舍逻辑、临界点
 - **isCore: true 的环节**：probingQuestion 不少于 **3 组**（每组含 Action + Feeling + Motivation），且必须包含具体的**互动任务（Task）**（如 discussionTask、behavioralEvidenceTask、consensusChallengeTask 等）。
 - **notes** 须包含：① 研究目的 ② 观察点 ③ 追问话术。
 
@@ -337,6 +339,10 @@ class GroqService {
 - **必须包含“情绪断点挖掘”**：强制问：“在整个加油/购车/XX过程中，哪个瞬间让你产生过「干脆算了」的念头？” 落到具体触点与决策临界点。
 - 以阶段组织：触发/准备（Before）→ 现场体验（During）→ 事后回想与复购（After）。
 - 每个阶段覆盖：关键行为、决策点、情绪/顾虑、触点、例外场景。
+- **probingQuestion 旅程专属**：
+  - Action：当时你具体在哪个环节？那一刻你的手/眼睛在做什么？能按时间线还原一下那个过程吗？
+  - Feeling：那个瞬间你是什么感觉？是「卡住了」还是「顺了」？哪个触点让你最不爽/最惊喜？
+  - Motivation：如果再来一次，你会怎么避开/重复那个环节？是什么让你最终决定继续/放弃？
 `;
     }
 
@@ -345,6 +351,10 @@ class GroqService {
 ### 竞品/选择研究结构 (Competitive Choice)
 - 强制围绕一次“真实选择/对比/切换”的时间线复盘。
 - 必须挖掘“取舍”与“不可接受项”（deal-breaker），不要问泛泛偏好。
+- **probingQuestion 竞品/选择专属**：
+  - Action：当时你是在什么情境下做这个选择的？你具体比较了哪几个？能还原一下当时的对比过程吗？
+  - Feeling：哪个点让你最终拍板？哪个点让你一度犹豫/直接排除？那一刻你心里在想什么？
+  - Motivation：如果再来一次，什么会让你换一个选择？什么是你绝对接受不了的？
 `;
     }
 
@@ -355,6 +365,10 @@ class GroqService {
 - **必须包含“证物展示”模块**：至少一个核心环节设 behavioralEvidenceTask（如打开手机相册/App 记录，找出最能代表「焦虑」或「爽快」时刻的截图/照片，并分享那个瞬间）。
 - 以预期→实际体验→关键时刻→原因追溯组织。
 - 把好/不好的感受落到具体触点与细节。
+- **probingQuestion 体验诊断专属**：
+  - Action：那 10 秒钟里，你的手在干什么？眼睛在看哪里？当时发生了什么？能举个具体例子/那个瞬间吗？
+  - Feeling：那种感觉是「被打扰」还是「被忽视」？你当下的真实感受是什么？那一刻对你意味着什么？
+  - Motivation：如果这种感觉持续发生，你会如何重新定义这个品牌？当实际与预期不符时，你如何调整了后续行为？
 `;
     }
 
@@ -364,6 +378,10 @@ class GroqService {
 - **必须包含“身份贴标签”与“品牌拟人化”**：严禁问“你是什么样的人”；改为投射式问法，如“如果你是一辆车，你会是什么颜色、什么配置？为什么？”或“如果该品牌是一个人，他穿什么、什么语气、更像管家还是工人？”用拟人化拉开人群差异。
 - 目标不是贴标签，而是找到“动机/场景/取舍”的分化方式。
 - 必须包含：生活/工作节奏、触发情境、价值取舍、典型一次经历、语言与隐喻。
+- **probingQuestion 画像/细分专属**：
+  - Action：能具体描述一下你典型一天/一次使用的情境吗？当时你在干什么、和谁在一起、什么触发了这个行为？
+  - Feeling：如果用三个词形容你自己在这类事上的风格，会是什么？为什么是这三个？你和身边人有什么不同？
+  - Motivation：什么情况下你会选 A 不选 B？什么是你绝对不会妥协的？你的「底线」在哪里？
 `;
     }
 
@@ -373,6 +391,10 @@ class GroqService {
 - 先测“理解”再测“价值”再测“可信/风险”。
 - 必须包含：对比现有替代方案、使用场景落地、触发与阻碍。
 - **未上市概念**：若测试对象为未来款/未发布产品，一律用假设性条件句（“如果…”“假设…”），严禁直接问“你觉得 X 的卖点是什么”。
+- **probingQuestion 概念/方案测试专属**：
+  - Action：你第一眼/第一反应理解成什么？能用自己的话复述一下吗？听完后你脑子里浮现了什么样的使用场景？
+  - Feeling：哪一点让你觉得「有意思」或「不靠谱」？和你现在的做法比，你更倾向于哪种？为什么？
+  - Motivation：什么情况下你会真的用？什么会让你犹豫或放弃？你最大的顾虑是什么？
 `;
     }
 
@@ -382,6 +404,10 @@ class GroqService {
 - **必须包含“心理账单博弈/拍卖”**：如给定总预算，在多个维度间分配；或模拟“愿意为某功能多付多少”的博弈式讨论。
 - **必须包含“价值剥离实验”**：使用假设性条件句，如“如果有一款手机，便宜 1000 元但去掉了 AI 功能，或者贵 1000 元但续航翻倍，你那一刻的「肉疼感」在哪里？”挖出真实的价值权衡与支付意愿临界点。严禁将未上市具体机型（如 iPhone 18）当作已知事实直接询问卖点。可以加入PSM的题
 - 不要直接问“你愿意付多少钱”，挖价值锚点、心理账户、付费触发条件、阻碍条件。
+- **probingQuestion 定价专属**（严禁用体验/品牌类追问如「那10秒钟」「被打扰/被忽视」）：
+  - Action：当时你看到价格/配置选项时，第一反应是什么？那一刻你在心里怎么盘算的？能举个你最近一次「纠结要不要加钱」的具体例子吗？
+  - Feeling：那种「肉疼」或「值了」的感觉，是在哪个选项出现时触发的？对你来说，多花多少钱算「过了线」？
+  - Motivation：如果必须在这几个功能里取舍，你宁愿多付还是少付？什么会让你改变主意？当实际价格超出预期时，你一般会怎么调整？
 `;
     }
 
@@ -390,6 +416,10 @@ class GroqService {
 ### 品牌/传播结构 (Brand)
 - 重点是“联想/情绪/角色/可信度/语言解码”，而不是满意度。
 - 必须包含：类别角色、品牌联想、品牌漏斗，信息理解偏差、与生活场景/人群的匹配。
+- **probingQuestion 品牌/传播专属**：
+  - Action：提到这个品牌，你脑海里最先蹦出什么画面/什么人/什么场景？能具体描述一下吗？
+  - Feeling：如果这个品牌是一个人，他穿什么、什么语气、给你什么感觉？你和朋友会怎么聊这个品牌？
+  - Motivation：什么信息会让你改变对它的看法？什么样的传播会让你觉得「对味」或「不对味」？
 `;
     }
 
@@ -398,6 +428,10 @@ class GroqService {
 ### 可用性/任务结构 (UX / Usability)
 - 以“任务”组织：目标任务 → 步骤复盘 → 卡点与误解 → 容错与恢复。
 - 必须挖“心智模型”：你以为它会怎么工作。
+- **probingQuestion 可用性/任务专属**：
+  - Action：你当时想完成什么？具体点了哪里、怎么操作的？能一步步还原吗？卡在哪一步了？
+  - Feeling：那一刻你以为是怎样才会work的？和实际不一样时你什么感觉？是「懵了」还是「懂了」？
+  - Motivation：如果再来一次，你会怎么试？你希望它怎么设计才符合你的直觉？
 `;
     }
 
@@ -421,7 +455,7 @@ class GroqService {
       experience: `\n- 研究类型提示：这是一个“体验诊断”研究。请从预期到实际体验复盘关键时刻，并追溯原因到具体触点。\n`,
       persona: `\n- 研究类型提示：这是一个“画像/细分”研究。请围绕动机、场景、取舍与语言隐喻来分化人群。\n`,
       concept: `\n- 研究类型提示：这是一个“概念/方案测试”。先测理解，再测价值，再测可信与风险，必须落到具体场景。\n`,
-      pricing: `\n- 研究类型提示：这是一个“定价/价值感”研究。避免直接要价格，聚焦价值锚点、付费门槛与触发条件。\n`,
+      pricing: `\n- 研究类型提示：这是一个“定价/价值感”研究。避免直接要价格，聚焦价值锚点、付费门槛与触发条件。probingQuestion 须用定价专属追问。\n`,
       brand: `\n- 研究类型提示：这是一个“品牌/传播”研究。聚焦联想、情绪、角色与信息解码，不要用满意度术语。\n`,
       ux: `\n- 研究类型提示：这是一个“可用性/任务”研究。按任务步骤复盘，找卡点、误解与心智模型。\n`,
     };
@@ -454,31 +488,31 @@ class GroqService {
 
     const fgdBlock = isFGD ? `
 
-### FGD 焦点小组专属要求 (Focus Group Discussion) — 社会评价压力 + 观点博弈
-- **研究聚焦**：社会评价压力（当众表达、从众/异议）、观点博弈（说服与被说服）。
+### FGD 焦点小组专属要求 (Focus Group Discussion) — 社会评价压力 + 观点博弈 + 群体共识
+- **研究聚焦**：社会评价压力（当众表达、从众/异议）、观点博弈（说服与被说服）、**群体共识与差异**。
 - **当前研究类型为「${currentStudyLabel}」**，大纲内容必须严格按该类型。
 - **环节 2 强制包含“共识挑战任务”**：要求组员集体否定一个现有的方案/产品/功能，并给出最具杀伤力的理由。示例：“请大家一起否决当前方案，说出最能击垮它的一个理由。”
 - **环节 2 同时设计“冲突点触发任务”**：价值观光谱、卡片分类、角色扮演等，提问须包含“有没有人有不同意见？”“请试图说服对方”等互动指令。
 - **behavioralEvidenceTask**：至少一个核心环节须设证物展示，用「请大家」群体语气，如“请大家打开手机相册或 App 历史记录，找出一个最能代表你「焦虑」或「爽快」时刻的截图/照片，并分享那个瞬间。”
-- **追问细度强制要求（Action → Feeling → Motivation）**：
-  - 严禁单句追问如“为什么？”“还有呢？”“能具体说说吗？”。
-  - \`probingQuestion\` 须严格按递进序列输出，用换行分隔：
-    1) **Level 1 (Action)**：那 10 秒钟里，你的手在干什么？眼睛在看哪里？当时发生了什么？能举个具体例子/那个瞬间吗？
-    2) **Level 2 (Feeling)**：那种感觉是「被打扰」还是「被忽视」？你当下的真实感受是什么？那一刻对你意味着什么？
-    3) **Level 3 (Motivation)**：如果这种感觉持续发生，你会如何重新定义这个品牌？当实际与预期不符时，你如何调整了后续的选择/行为？
-  - **isCore 环节**：probingQuestion 不少于 **3 组**（每组含 Action + Feeling + Motivation），且必须包含 discussionTask 或 consensusChallengeTask 或 behavioralEvidenceTask。
+- **FGD probingQuestion 专属**（须叠加在研究类型追问之上）：追问须用**群体语气**「大家觉得」「有没有人有不同意见」「谁更靠近哪一边」；必须挖**共识与分歧**；每个核心环节须含至少 1 条**共识/差异追问**。
+- **追问细度**：\`probingQuestion\` 须严格按 Action → Feeling → Motivation 递进，且**必须与研究类型匹配**，同时叠加 FGD 群体共识追问。
+- **isCore 环节**：probingQuestion 不少于 **3 组**，且必须包含 discussionTask 或 consensusChallengeTask 或 behavioralEvidenceTask。
 - **questions 数组要求**：每个环节的 questions 不少于 3 条，且每条主问题后可在 notes 中注明对应追问；或直接将追问拆成独立 questions 条目。
 - **备注 (notes)**：须包含**主持人干预技巧**（如何处理话多/沉默者、若一边倒如何追问），以及**本环节的 2-3 条具体追问话术**，逐条写出，不要概括。
 - **当前研究类型专属任务**：${fgdInteraction ? `【${fgdInteraction.task}】请在环节 2 落实，并设 \`interactionType\` 为 \`"${fgdInteraction.type}"\`。` : ''}
 - **环节时长**：核心挖掘环节须占 70% 总时长，暖场+收尾合计不超过 30%。
 ` : `
 
-### IDI 深度访谈要求 (In-Depth Interview) — 极端个案 + 心理防御拆解
-- **研究聚焦**：极端个案（outlier）、心理防御拆解（rationalization、justification、认知偏差）。
-- **probingQuestion**：须严格按 Action → Feeling → Motivation 递进（3 条），用换行分隔。
-- **behavioralEvidenceTask**：至少一个核心环节须设证物展示，用「请你」单人语气，如“请你打开手机相册或 App 历史记录，找出一个最能代表你「焦虑」或「爽快」时刻的截图/照片，并分享那个瞬间。”
+### IDI 深度访谈专属要求 (In-Depth Interview) — 极端个案 + 心理防御拆解
+- **研究聚焦**：极端个案（outlier）、**心理防御拆解**（rationalization、justification、认知偏差、合理化说辞）。
+- **IDI probingQuestion 专属**（须叠加在研究类型追问之上）：
+  - 追问须用**单人语气**：「你」「请你」；严禁用「大家」「我们」。
+  - 必须拆**合理化说辞**：当受访者说「因为方便」「大家都这样」时，追问具体情境、那一刻的真实想法、有没有例外。
+  - 每个核心环节须含至少 1 条**心理防御拆解追问**，如：“能举个具体例子吗？当时你怎么决定的？”“你说的「方便」具体指什么？有没有一次你觉得其实没那么方便？”
+- **behavioralEvidenceTask**：至少一个核心环节须设证物展示，用「请你」单人语气。
+- **追问细度**：\`probingQuestion\` 须严格按 Action → Feeling → Motivation 递进，且**必须与研究类型匹配**，同时叠加 IDI 心理防御拆解追问。
 - **questions**：每环节不少于 3 条主问题，须口语化、基于具体经历；追问要拆解受访者的“合理化说辞”。
-- **notes**：须含研究目的、观察点、追问话术（含心理防御拆解提示）。
+- **notes**：须含研究目的、观察点、追问话术（**含心理防御拆解提示**：受访者可能如何合理化、如何追问破防）。
 - **核心环节占 70% 时长**：为核心环节设 isCore: true。
 `;
 
@@ -610,7 +644,7 @@ ${fgdBlock}
   ]
 }
 
-说明：probingQuestion 须严格按 Action → Feeling → Motivation 递进；至少一个核心环节设 behavioralEvidenceTask（IDI 用「请你」，FGD 用「请大家」）；isCore 环节 probingQuestion 不少于 3 组且含互动任务。${isFGD ? 'FGD 必须自动生成 consensusChallengeTask（⚡ 冲突点挑战）；环节 2 须设 interactionType、discussionTask、consensusChallengeTask。' : ''}${studyType === 'experience' ? ' Experience 类型必须自动生成 behavioralEvidenceTask（📷 证物展示）模块。' : ''}`;
+说明：probingQuestion 须严格按 Action → Feeling → Motivation 递进；须使用「${currentStudyLabel}」专属追问 + ${isFGD ? 'FGD 群体共识追问' : 'IDI 心理防御拆解追问'}（见上述结构说明）；严禁跨类型套用；至少一个核心环节设 behavioralEvidenceTask（IDI 用「请你」，FGD 用「请大家」）；isCore 环节 probingQuestion 不少于 3 组且含互动任务。${isFGD ? ' FGD 必须自动生成 consensusChallengeTask（⚡ 冲突点挑战）；环节 2 须设 interactionType、discussionTask、consensusChallengeTask。' : ''}${studyType === 'experience' ? ' Experience 类型必须自动生成 behavioralEvidenceTask（📷 证物展示）模块。' : ''}`;
 
     return `${systemPrompt}${languageDirective}\n\n${userPrompt}`;
   }

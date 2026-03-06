@@ -2,9 +2,24 @@
 
 ## Environment Variables
 
+### Vercel Deployment
+
+For Vercel, add these in **Settings → Environment Variables**:
+
+| Name | Value |
+|------|-------|
+| `GROQ_API_KEY` | Your Groq API key from [console.groq.com](https://console.groq.com) |
+| `SKIP_AUTH` | `1` (for demo without database) |
+| `AUTH_SECRET` | Any random 32+ char string |
+
+Use `GROQ_API_KEY` (not `NEXT_PUBLIC_GROQ_API_KEY`) on Vercel — it is more secure and loaded at runtime.
+
+### Local Development
+
 Add to `.env.local`:
 
 ```
+NEXT_PUBLIC_GROQ_API_KEY=your_groq_api_key
 AUTH_SECRET=your-random-32-char-secret-for-production
 ```
 
