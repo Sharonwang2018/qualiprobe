@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, hasDatabase } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
+  if (!hasDatabase || !prisma) {
+    return NextResponse.json(
+      { error: "Registration is not available in demo mode" },
+      { status: 503 }
+    );
+  }
   try {
     const body = await request.json();
     const { email, password, name } = body;

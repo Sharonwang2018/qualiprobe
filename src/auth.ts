@@ -2,12 +2,14 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import WeChat from "next-auth/providers/wechat";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { prisma } from "@/lib/prisma";
+import { prisma, hasDatabase } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+
+const skipAuth = process.env.SKIP_AUTH === "1";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.AUTH_SECRET,
-  adapter: PrismaAdapter(prisma),
+  adapter: hasDatabase ? PrismaAdapter(prisma!) : undefined,
   providers: [
     Credentials({
       name: "credentials",
@@ -17,7 +19,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
-        const user = await prisma.user.findUnique({
+        if (skipAuth || !hasDatabase) {
+          return { id: "demo", email: "demo@qualiprobe.dev", name: "Demo User" };
+        }
+        const user = await prisma!.user.findUnique({
           where: { email: String(credentials.email) },
         });
         if (!user?.passwordHash) return null;
