@@ -123,6 +123,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
 }
 
 /* 拖拽面板样式 */
@@ -153,5 +156,13 @@
   .resizable-panel:hover {
     outline: 2px solid #3b82f6;
     outline-offset: -2px;
+  }
+
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 }

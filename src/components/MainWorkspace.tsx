@@ -584,37 +584,37 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
 
   return (
     <div className="h-full bg-[#F8FAFC] overflow-y-auto">
-      <div className="w-full px-10 py-8">
+      <div className="w-full px-4 md:px-10 py-4 md:py-8">
         {/* 工作台切换标签 */}
-        <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg mb-8">
+        <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:space-x-2 bg-slate-100 p-1 rounded-lg mb-4 md:mb-8">
           <button
             onClick={() => setActiveWorkbench('outline')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            className={`flex-1 sm:flex-none px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-all ${
               activeWorkbench === 'outline' 
                 ? 'bg-blue-600 text-white' 
                 : 'text-slate-600 hover:text-slate-800'
             }`}
           >
-            <Edit3 className="w-4 h-4 inline mr-2" />
+            <Edit3 className="w-4 h-4 inline mr-1.5 md:mr-2" />
             {t('header.outlineDesign')}
           </button>
           <button
             onClick={() => setActiveWorkbench('analysis')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            className={`flex-1 sm:flex-none px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-all ${
               activeWorkbench === 'analysis' 
                 ? 'bg-blue-600 text-white' 
                 : 'text-slate-600 hover:text-slate-800'
             }`}
           >
-            <Search className="w-4 h-4 inline mr-2" />
+            <Search className="w-4 h-4 inline mr-1.5 md:mr-2" />
             {t('header.interviewAnalysis')}
           </button>
         </div>
 
         {activeWorkbench === 'outline' && (
           <>
-            {/* 参数设置区 - 精致纸张质感 */}
-            <div className="max-w-4xl mx-auto bg-white border border-slate-50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[32px] p-6 mb-8">
+            {/* 参数设置区 */}
+            <div className="max-w-4xl mx-auto bg-white border border-slate-50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl md:rounded-[32px] p-4 md:p-6 mb-4 md:mb-8">
               <div className="space-y-8">
                 {/* 研究主题 - 大字号无边框风格 */}
                 <div>
@@ -1159,7 +1159,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                       </Button>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mb-6">
                       <div>
                         <Label className="text-slate-600 text-sm">{t('workspace.duration')}</Label>
                         <Input
@@ -1221,8 +1221,8 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
         )}
 
         {activeWorkbench === 'analysis' && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
+            <div className="bg-white border border-slate-200 rounded-xl md:rounded-2xl p-4 md:p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">{t('analysis.transcriptUpload')}</h3>
               <input
                 type="file"

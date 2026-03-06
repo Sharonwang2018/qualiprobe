@@ -44,6 +44,7 @@ interface HistorySidebarProps {
   onSelectProject?: (projectId: string) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  compact?: boolean;
 }
 
 const formatDateToYYYYMMDD = (date: Date) => {
@@ -58,7 +59,8 @@ export default function HistorySidebar({
   activeProjectId = null,
   onSelectProject,
   isCollapsed = false,
-  onToggleCollapse
+  onToggleCollapse,
+  compact = false
 }: HistorySidebarProps) {
   const { t } = useLanguage();
   // 搜索和过滤状态
@@ -98,29 +100,29 @@ export default function HistorySidebar({
 
   return (
     <div className="h-full bg-slate-50 flex flex-col">
-      {/* 头部 */}
-      <div className="p-6 border-b border-slate-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mr-3">
-              <Clock className="w-4 h-4 text-white" />
+      {!compact && (
+        <div className="p-6 border-b border-slate-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mr-3">
+                <Clock className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-slate-800 font-medium text-sm">{t('sidebar.historyRecords')}</h3>
+                <p className="text-slate-500 text-xs">{t('sidebar.projectMemory')}</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-slate-800 font-medium text-sm">{t('sidebar.historyRecords')}</h3>
-              <p className="text-slate-500 text-xs">{t('sidebar.projectMemory')}</p>
-            </div>
+            <button
+              onClick={onToggleCollapse}
+              className="text-slate-400 hover:text-slate-600 p-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={onToggleCollapse}
-            className="text-slate-400 hover:text-slate-600 p-1"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
         </div>
-      </div>
-      
+      )}
       {/* 搜索框 */}
-      <div className="p-4 border-b border-slate-200">
+      <div className={`border-b border-slate-200 ${compact ? 'p-3' : 'p-4'}`}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
           <Input
@@ -141,7 +143,7 @@ export default function HistorySidebar({
       </div>
       
       {/* 内容区域 */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className={`flex-1 overflow-y-auto space-y-6 ${compact ? 'p-3' : 'p-6'}`}>
         {/* 历史记录 */}
         <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">

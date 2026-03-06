@@ -6,6 +6,8 @@ import HistorySidebar from '@/components/HistorySidebar';
 import MainWorkspace from '@/components/MainWorkspace';
 import AgentChat from '@/components/AgentChat';
 import { LanguageProvider, useLanguage } from '@/contexts/LanguageContext';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { Edit3, Clock, MessageSquare, X } from 'lucide-react';
 
 interface OutlineData {
   project_title: string;
@@ -26,8 +28,12 @@ interface Project {
   timestamp: string;
 }
 
+type MobilePane = 'workspace' | 'history' | 'agent';
+
 function QualiProbe() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
+  const isMobile = useIsMobile();
+  const [mobilePane, setMobilePane] = useState<MobilePane>('workspace');
   const [leftWidth, setLeftWidth] = useState(20);
   const [rightWidth, setRightWidth] = useState(30);
   const [isDragging, setIsDragging] = useState<'left' | 'right' | null>(null);
@@ -168,16 +174,124 @@ function QualiProbe() {
     }
   }, [isDragging]);
 
+  const agentChatEl = (compact = false) => (
+    <AgentChat
+      outlineData={outlineData}
+      researchTopic={agentContext.researchTopic}
+      targetAudience={agentContext.targetAudience}
+      researchPurpose={agentContext.researchPurpose}
+      activeWorkbench={agentContext.activeWorkbench}
+      analysisResult={agentContext.analysisResult}
+      transcriptText={agentContext.transcriptText}
+      isCollapsed={isAgentCollapsed}
+      onToggleCollapse={() => setIsAgentCollapsed(true)}
+      onApplySuggestion={handleApplySuggestion}
+      compact={compact}
+    />
+  );
+
+  if (isMobile) {
+    return (
+      <div className="h-screen w-full overflow-hidden bg-white flex flex-col safe-area-pb">
+        <Header />
+        <div className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-16">
+          {mobilePane === 'history' && (
+            <div className="absolute inset-0 top-14 md:top-16 z-40 bg-white flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                <h2 className="font-semibold text-slate-800">{t('sidebar.historyRecords')}</h2>
+                <button
+                  onClick={() => setMobilePane('workspace')}
+                  className="p-2 -mr-2 text-slate-500 hover:text-slate-700"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <HistorySidebar
+                  projects={projects}
+                  activeProjectId={activeProjectId}
+                  onSelectProject={(id) => {
+                    handleSelectProject(id);
+                    setMobilePane('workspace');
+                  }}
+                  compact
+                />
+              </div>
+            </div>
+          )}
+          {mobilePane === 'workspace' && (
+            <div className="flex-1 overflow-hidden">
+              <MainWorkspace
+                outlineData={outlineData}
+                setOutlineData={setOutlineData}
+                onOutlineGenerated={handleOutlineGenerated}
+                onContextSync={setAgentContext}
+              />
+            </div>
+          )}
+          {mobilePane === 'agent' && (
+            <div className="absolute inset-0 top-14 md:top-16 z-40 bg-white flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                <h2 className="font-semibold text-slate-800">{t('sidebar.aiExpert')}</h2>
+                <button
+                  onClick={() => setMobilePane('workspace')}
+                  className="p-2 -mr-2 text-slate-500 hover:text-slate-700"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden min-h-0">
+                {agentChatEl(true)}
+              </div>
+            </div>
+          )}
+        </div>
+        <nav className="md:hidden flex items-center justify-around py-2 px-4 border-t border-slate-200 bg-white safe-area-bottom">
+          <button
+            onClick={() => setMobilePane('workspace')}
+            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors min-w-0 ${
+              mobilePane === 'workspace' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'
+            }`}
+          >
+            <Edit3 className="w-5 h-5 flex-shrink-0" />
+            <span className="text-[11px] font-medium truncate">{t('mobile.workspace')}</span>
+          </button>
+          <button
+            onClick={() => setMobilePane('history')}
+            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors min-w-0 ${
+              mobilePane === 'history' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'
+            }`}
+          >
+            <Clock className="w-5 h-5 flex-shrink-0" />
+            <span className="text-[11px] font-medium truncate">{t('mobile.history')}</span>
+          </button>
+          <button
+            onClick={() => setMobilePane('agent')}
+            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors min-w-0 ${
+              mobilePane === 'agent' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'
+            }`}
+          >
+            <MessageSquare className="w-5 h-5 flex-shrink-0" />
+            <span className="text-[11px] font-medium truncate">{t('mobile.agent')}</span>
+          </button>
+        </nav>
+        {disclaimerText && (
+          <div className="hidden md:flex h-10 items-center justify-center border-t border-slate-100 bg-white px-4">
+            <p className="text-[11px] text-slate-400">{disclaimerText}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
       <div className="h-screen w-full overflow-hidden bg-white flex flex-col">
-        {/* Header 顶部导航栏 - 固定定位 */}
         <Header />
-        
-        {/* 三栏容器 - 为Header留出空间 */}
         <div className="flex-1 flex overflow-hidden pt-16">
-          {/* 左侧面板 - 项目记忆 */}
           <div 
-            className="bg-slate-50 border-r border-slate-200 flex-shrink-0"
+            className="hidden md:block bg-slate-50 border-r border-slate-200 flex-shrink-0"
             style={{ width: `${leftWidth}%` }}
           >
             <HistorySidebar
@@ -186,15 +300,11 @@ function QualiProbe() {
               onSelectProject={handleSelectProject}
             />
           </div>
-          
-          {/* 左侧拖拽手柄 */}
           <div 
-            className="w-0.5 bg-transparent border-r border-slate-200 hover:bg-indigo-500/50 cursor-col-resize transition-all duration-300 flex-shrink-0"
+            className="hidden md:block w-0.5 bg-transparent border-r border-slate-200 hover:bg-indigo-500/50 cursor-col-resize transition-all duration-300 flex-shrink-0"
             onMouseDown={() => handleMouseDown('left')}
           />
-          
-          {/* 中间面板 - 主工作区 */}
-          <div className="flex-1 bg-white overflow-hidden">
+          <div className="flex-1 bg-white overflow-hidden min-w-0">
             <MainWorkspace
               outlineData={outlineData}
               setOutlineData={setOutlineData}
@@ -202,41 +312,25 @@ function QualiProbe() {
               onContextSync={setAgentContext}
             />
           </div>
-          
-          {/* 右侧拖拽手柄 */}
           <div 
-            className="w-0.5 bg-transparent border-r border-slate-200 hover:bg-indigo-500/50 cursor-col-resize transition-all duration-300 flex-shrink-0"
+            className="hidden md:block w-0.5 bg-transparent border-r border-slate-200 hover:bg-indigo-500/50 cursor-col-resize transition-all duration-300 flex-shrink-0"
             onMouseDown={() => handleMouseDown('right')}
           />
-          
-          {/* 右侧面板 - AI Agent */}
           {!isAgentCollapsed && (
             <div 
-              className="bg-transparent border-l border-slate-100 flex-shrink-0 min-w-[240px]"
+              className="hidden md:block bg-transparent border-l border-slate-100 flex-shrink-0 min-w-[240px]"
               style={{ width: `${Math.min(45, rightWidth)}%` }}
             >
-              <AgentChat
-                outlineData={outlineData}
-                researchTopic={agentContext.researchTopic}
-                targetAudience={agentContext.targetAudience}
-                researchPurpose={agentContext.researchPurpose}
-                activeWorkbench={agentContext.activeWorkbench}
-                analysisResult={agentContext.analysisResult}
-                transcriptText={agentContext.transcriptText}
-                isCollapsed={isAgentCollapsed}
-                onToggleCollapse={() => setIsAgentCollapsed(true)}
-                onApplySuggestion={handleApplySuggestion}
-              />
+              {agentChatEl(false)}
             </div>
           )}
-
           {isAgentCollapsed && (
-            <div className="bg-transparent border-l border-slate-100 flex-shrink-0 w-12">
+            <div className="hidden md:flex bg-transparent border-l border-slate-100 flex-shrink-0 w-12">
               <div className="h-full flex flex-col items-center justify-start pt-6">
                 <button
                   onClick={() => setIsAgentCollapsed(false)}
                   className="text-slate-400 hover:text-slate-600 p-2"
-                  aria-label="展开 AI 助手"
+                  aria-label="Expand AI"
                 >
                   <span className="text-lg">›</span>
                 </button>
@@ -244,7 +338,6 @@ function QualiProbe() {
             </div>
           )}
         </div>
-
         {disclaimerText && (
           <div className="h-10 flex items-center justify-center border-t border-slate-100 bg-white px-4">
             <p className="text-[11px] text-slate-400">{disclaimerText}</p>

@@ -1,4 +1,9 @@
 {
+  "mobile": {
+    "workspace": "Outline",
+    "history": "History",
+    "agent": "AI"
+  },
   "sidebar": {
     "memory": "History",
     "projectMemory": "History Records",

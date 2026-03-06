@@ -1,4 +1,9 @@
 {
+  "mobile": {
+    "workspace": "大纲",
+    "history": "历史",
+    "agent": "AI"
+  },
   "sidebar": {
     "memory": "历史",
     "projectMemory": "历史记录",

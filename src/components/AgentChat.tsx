@@ -59,6 +59,7 @@ interface AgentChatProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onApplySuggestion?: (section: SectionInput) => void;
+  compact?: boolean;
 }
 
 export default function AgentChat({ 
@@ -72,7 +73,8 @@ export default function AgentChat({
   transcriptChunks = [],
   onScrollToEvidence,
   onToggleCollapse,
-  onApplySuggestion
+  onApplySuggestion,
+  compact = false
 }: AgentChatProps) {
   const { t } = useLanguage();
   // 对话状态
@@ -292,18 +294,20 @@ ${analysisBlock}
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* 头部 */}
-      <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 flex-shrink-0">
-        <div className="flex items-center">
-          <Brain className="w-5 h-5 text-blue-600 mr-2" />
-          <span className="font-bold text-slate-700 text-sm">{t('agent.title')}</span>
+      {!compact && (
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 flex-shrink-0">
+          <div className="flex items-center">
+            <Brain className="w-5 h-5 text-blue-600 mr-2" />
+            <span className="font-bold text-slate-700 text-sm">{t('agent.title')}</span>
+          </div>
+          {onToggleCollapse && (
+            <button onClick={onToggleCollapse} className="text-slate-400 hover:text-slate-600 p-1">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
         </div>
-        <button onClick={onToggleCollapse} className="text-slate-400 hover:text-slate-600 p-1">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-      </div>
-      
-      {/* 聊天区域 - 吃掉所有剩余空间 */}
+      )}
+      {/* 聊天区域 */}
       <div className="flex-1 overflow-y-auto relative">
         <div className="p-4" ref={chatContainerRef}>
           {/* 对话消息列表 */}
