@@ -48,6 +48,12 @@ export type StudyType =
 
 class GroqService {
   private groq: Groq | null = null;
+  private static readonly OUTPUT_LANGUAGE = {
+    ZH: "zh",
+    EN: "en",
+    JA: "ja",
+    BILINGUAL: "bilingual",
+  } as const;
 
   constructor() {
     this.initializeClient();
@@ -72,6 +78,117 @@ class GroqService {
     console.log('✅ Groq service client initialized successfully');
   }
 
+  private normalizeOutputLanguage(outputLanguage?: string): "zh" | "en" | "ja" | "bilingual" {
+    const value = (outputLanguage || "").trim().toLowerCase();
+    if (["英文", "english", "en", "en-us", "en_us"].includes(value)) {
+      return GroqService.OUTPUT_LANGUAGE.EN;
+    }
+    if (["日文", "日语", "japanese", "ja", "jp", "ja-jp", "ja_jp"].includes(value)) {
+      return GroqService.OUTPUT_LANGUAGE.JA;
+    }
+    if (["双语对照", "bilingual", "bi", "zh-en", "zh_en"].includes(value)) {
+      return GroqService.OUTPUT_LANGUAGE.BILINGUAL;
+    }
+    return GroqService.OUTPUT_LANGUAGE.ZH;
+  }
+
+  private buildLanguageConstraint(mode: "zh" | "en" | "ja" | "bilingual"): string {
+    if (mode === GroqService.OUTPUT_LANGUAGE.EN) {
+      return "CRITICAL: Output language is English only. All JSON values must be in English. Do not include any Chinese or Japanese characters.";
+    }
+    if (mode === GroqService.OUTPUT_LANGUAGE.JA) {
+      return "CRITICAL: 出力言語は日本語のみ。すべての JSON 値を日本語で記述し、中国語は含めないでください。";
+    }
+    if (mode === GroqService.OUTPUT_LANGUAGE.BILINGUAL) {
+      return "CRITICAL: 双语对照输出。所有 title/questions/notes 等字段都必须采用“中文 / English”同一行对照格式。";
+    }
+    return "CRITICAL: 输出语言为中文。所有 JSON 值必须使用中文。";
+  }
+
+  private outlineContainsCjk(outline: OutlineData): boolean {
+    const hasCjk = (value: string) => /[\u4e00-\u9fff]/.test(value);
+    if (hasCjk(outline.project_title || "")) return true;
+    for (const section of outline.sections || []) {
+      if (hasCjk(section.title || "")) return true;
+      if (hasCjk(section.duration || "")) return true;
+      if (hasCjk(section.notes || "")) return true;
+      if (hasCjk(section.probingQuestion || "")) return true;
+      if (hasCjk(section.discussionTask || "")) return true;
+      if (hasCjk(section.consensusChallengeTask || "")) return true;
+      if (hasCjk(section.behavioralEvidenceTask || "")) return true;
+      if ((section.questions || []).some((q) => hasCjk(q || ""))) return true;
+    }
+    return false;
+  }
+
+  private async rewriteOutlineToEnglish(outline: OutlineData): Promise<OutlineData> {
+    if (!this.groq) return outline;
+    const rewritePrompt = `
+Rewrite the following interview outline JSON into English-only JSON.
+
+Rules:
+- Keep the exact same schema and keys.
+- Preserve section count and IDs.
+- Do not drop fields.
+- Translate all values to natural professional English.
+- Duration should use "min" format (e.g. "15 min").
+- Return JSON only.
+
+Input JSON:
+${JSON.stringify(outline)}
+`;
+    const rewritten = await this.groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: "You are a strict JSON rewriting assistant." },
+        { role: "user", content: rewritePrompt },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+      max_tokens: 8192,
+    });
+    const text = rewritten.choices[0]?.message?.content || "";
+    try {
+      return JSON.parse(text);
+    } catch {
+      return outline;
+    }
+  }
+
+  private async rewriteOutlineToJapanese(outline: OutlineData): Promise<OutlineData> {
+    if (!this.groq) return outline;
+    const rewritePrompt = `
+以下のインタビューアウトライン JSON を、日本語のみの JSON に書き換えてください。
+
+ルール:
+- スキーマとキー名は完全に維持すること
+- セクション数と ID を維持すること
+- フィールドを削除しないこと
+- すべての値を自然で専門的な日本語に翻訳すること
+- duration は「XX分」形式にすること（例: "15分"）
+- JSON だけを返すこと
+
+入力 JSON:
+${JSON.stringify(outline)}
+`;
+    const rewritten = await this.groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        { role: "system", content: "あなたは厳密な JSON 書き換えアシスタントです。" },
+        { role: "user", content: rewritePrompt },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+      max_tokens: 8192,
+    });
+    const text = rewritten.choices[0]?.message?.content || "";
+    try {
+      return JSON.parse(text);
+    } catch {
+      return outline;
+    }
+  }
+
   async generateOutline(params: GenerateParams): Promise<OutlineData> {
     if (!this.groq) {
       console.error('Groq client not initialized');
@@ -79,8 +196,9 @@ class GroqService {
     }
 
     try {
-      // 使用传入的SYSTEM_PROMPT或默认prompt
-      const systemPrompt = params.systemPrompt || "你是一位资深的市场研究专家，拥有15年以上的定性研究经验。请严格按照JSON格式返回结果，不要添加任何额外的解释或格式。";
+      const languageMode = this.normalizeOutputLanguage(params.outputLanguage);
+      const systemPromptBase = params.systemPrompt || "你是一位资深的市场研究专家，拥有15年以上的定性研究经验。请严格按照JSON格式返回结果，不要添加任何额外的解释或格式。";
+      const systemPrompt = `${systemPromptBase}\n\n${this.buildLanguageConstraint(languageMode)}`;
       
       const userPrompt = this.buildEnhancedPrompt(params);
 
@@ -113,6 +231,13 @@ class GroqService {
         console.error('Failed to parse AI response as JSON:', parseError);
         console.error('Raw response:', text);
         throw new Error(`AI响应解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`);
+      }
+
+      if (languageMode === GroqService.OUTPUT_LANGUAGE.EN && this.outlineContainsCjk(outlineData)) {
+        outlineData = await this.rewriteOutlineToEnglish(outlineData);
+      }
+      if (languageMode === GroqService.OUTPUT_LANGUAGE.JA) {
+        outlineData = await this.rewriteOutlineToJapanese(outlineData);
       }
 
       return outlineData;
@@ -474,17 +599,94 @@ class GroqService {
     };
     const currentStudyLabel = studyTypeLabel[studyType];
 
-    const fgdInteractionByStudyType: Partial<Record<Exclude<StudyType, 'auto'>, { task: string; type: FGDInteractionType }>> = {
-      journey: { task: '体感地图绘制（白板画出旅程图，标决策点与情绪转折）', type: 'mapping' },
-      competitive: { task: '模拟辩论/阵营PK（分两组互驳后互换立场）', type: 'conflict' },
-      concept: { task: '方案共创/加减法（功能卡片：保留/砍掉/新增各选3张）', type: 'discuss' },
-      pricing: { task: '心理账单博弈/拍卖（多维度分配预算，讨论不可妥协前三）', type: 'values' },
-      experience: { task: '红黑榜/找茬挑战（最惊喜3瞬 vs 最想吐槽3瞬）', type: 'conflict' },
-      persona: { task: '价值观光谱/站位（务实 vs 极客两端拉线，站位后讨论）', type: 'values' },
-      brand: { task: '品牌拟人化/映射（如果品牌是人，穿什么、什么语气？）', type: 'mapping' },
-      ux: { task: '任务走查投票（投票“最卡的一步”并讨论第一反应）', type: 'discuss' },
+    const outputLanguageMode = this.normalizeOutputLanguage(params.outputLanguage);
+    const outputLanguageLabel =
+      outputLanguageMode === GroqService.OUTPUT_LANGUAGE.EN
+        ? "英文"
+        : outputLanguageMode === GroqService.OUTPUT_LANGUAGE.JA
+          ? "日文"
+          : outputLanguageMode === GroqService.OUTPUT_LANGUAGE.BILINGUAL
+            ? "双语对照"
+            : "中文";
+
+    const fgdInteractionByStudyType: Partial<Record<Exclude<StudyType, 'auto'>, {
+      taskZh: string;
+      taskEn: string;
+      taskJa: string;
+      taskBi: string;
+      type: FGDInteractionType;
+    }>> = {
+      journey: {
+        taskZh: "体感地图绘制（白板画出旅程图，标决策点与情绪转折）",
+        taskEn: "Journey mapping workshop (draw the end-to-end journey and mark decision points and emotional inflection points).",
+        taskJa: "体感マップ作成（ホワイトボードにジャーニーを描き、意思決定点と感情の転換点を示す）。",
+        taskBi: "体感地图绘制（白板画出旅程图，标决策点与情绪转折） / Journey mapping workshop (draw the end-to-end journey and mark decision and emotion inflection points).",
+        type: "mapping",
+      },
+      competitive: {
+        taskZh: "模拟辩论/阵营PK（分两组互驳后互换立场）",
+        taskEn: "Debate and side-switching exercise (split into two camps, argue, then switch positions).",
+        taskJa: "模擬ディベート/陣営対決（2グループに分かれて議論し、その後立場を入れ替える）。",
+        taskBi: "模拟辩论/阵营PK（分两组互驳后互换立场） / Debate and side-switching exercise.",
+        type: "conflict",
+      },
+      concept: {
+        taskZh: "方案共创/加减法（功能卡片：保留/砍掉/新增各选3张）",
+        taskEn: "Concept co-creation add/subtract exercise (feature cards: keep 3, cut 3, add 3).",
+        taskJa: "案の共創/加減法（機能カードで「残す3・削る3・追加3」を選択）。",
+        taskBi: "方案共创/加减法（保留3/砍掉3/新增3） / Concept co-creation add/subtract exercise (keep 3/cut 3/add 3).",
+        type: "discuss",
+      },
+      pricing: {
+        taskZh: "心理账单博弈/拍卖（多维度分配预算，讨论不可妥协前三）",
+        taskEn: "Mental accounting auction (allocate budget across dimensions and debate top 3 non-negotiables).",
+        taskJa: "心理会計ゲーム/オークション（予算配分を行い、譲れない上位3項目を議論）。",
+        taskBi: "心理账单博弈/拍卖（多维预算分配） / Mental accounting auction (multi-dimension budget allocation).",
+        type: "values",
+      },
+      experience: {
+        taskZh: "红黑榜/找茬挑战（最惊喜3瞬 vs 最想吐槽3瞬）",
+        taskEn: "Love/Hate moment challenge (top 3 delight moments vs top 3 frustration moments).",
+        taskJa: "良い点/悪い点チャレンジ（最も嬉しかった3瞬間 vs 最も不満だった3瞬間）。",
+        taskBi: "红黑榜/找茬挑战（最惊喜3瞬 vs 最想吐槽3瞬） / Love/Hate moment challenge (top 3 delight vs top 3 frustration moments).",
+        type: "conflict",
+      },
+      persona: {
+        taskZh: "价值观光谱/站位（务实 vs 极客两端拉线，站位后讨论）",
+        taskEn: "Value spectrum positioning (pragmatic vs geek line-up, then discuss why).",
+        taskJa: "価値観スペクトラム立ち位置（実用派 vs ギークの軸に立って理由を議論）。",
+        taskBi: "价值观光谱/站位（务实 vs 极客） / Value spectrum positioning (pragmatic vs geek).",
+        type: "values",
+      },
+      brand: {
+        taskZh: "品牌拟人化/映射（如果品牌是人，穿什么、什么语气？）",
+        taskEn: "Brand personification mapping (if the brand were a person, what style and tone would it have?).",
+        taskJa: "ブランド擬人化/マッピング（ブランドが人なら、どんな服装・話し方か）。",
+        taskBi: "品牌拟人化/映射（如果品牌是人） / Brand personification mapping (if the brand were a person).",
+        type: "mapping",
+      },
+      ux: {
+        taskZh: "任务走查投票（投票“最卡的一步”并讨论第一反应）",
+        taskEn: "Task walkthrough voting (vote on the most blocking step and discuss first reactions).",
+        taskJa: "タスク走査投票（最も詰まるステップに投票し、第一印象を議論）。",
+        taskBi: "任务走查投票（最卡一步） / Task walkthrough voting (most blocking step).",
+        type: "discuss",
+      },
     };
-    const fgdInteraction = fgdInteractionByStudyType[studyType];
+    const fgdInteractionRaw = fgdInteractionByStudyType[studyType];
+    const fgdInteraction = fgdInteractionRaw
+      ? {
+          type: fgdInteractionRaw.type,
+          task:
+            outputLanguageMode === GroqService.OUTPUT_LANGUAGE.EN
+              ? fgdInteractionRaw.taskEn
+              : outputLanguageMode === GroqService.OUTPUT_LANGUAGE.JA
+                ? fgdInteractionRaw.taskJa
+                : outputLanguageMode === GroqService.OUTPUT_LANGUAGE.BILINGUAL
+                  ? fgdInteractionRaw.taskBi
+                  : fgdInteractionRaw.taskZh,
+        }
+      : undefined;
 
     const fgdBlock = isFGD ? `
 
@@ -516,23 +718,23 @@ class GroqService {
 - **核心环节占 70% 时长**：为核心环节设 isCore: true。
 `;
 
-    const outputLanguage = params.outputLanguage || '中文';
+    const outputLanguage = outputLanguageLabel;
     const languageDirective = (() => {
-      if (outputLanguage === '英文') {
+      if (outputLanguageMode === GroqService.OUTPUT_LANGUAGE.EN) {
         return `\n### CRITICAL: Output Language = English ONLY\n- **Every** JSON value (project_title, section title, duration, questions, notes, probingQuestion, discussionTask, consensusChallengeTask, behavioralEvidenceTask) MUST be written in English.\n- Do NOT include any Chinese or Japanese characters. Use English throughout.\n`;
       }
-      if (outputLanguage === '日文') {
+      if (outputLanguageMode === GroqService.OUTPUT_LANGUAGE.JA) {
         return `\n### CRITICAL: 出力言語 = 日本語のみ\n- **すべての** JSON 値（project_title、section title、duration、questions、notes、probingQuestion 等）は日本語で書いてください。\n- 中国語を含めないでください。\n`;
       }
-      if (outputLanguage === '双语对照') {
+      if (outputLanguageMode === GroqService.OUTPUT_LANGUAGE.BILINGUAL) {
         return `\n### CRITICAL: 双语对照输出\n- 每一条问题、notes、title 等均须输出为「中文 / English」同一行对照格式。\n- 例："你上一次加油时发生了什么？ / What happened the last time you refueled?"\n`;
       }
       return `\n### CRITICAL: 输出语言 = 中文\n- **所有** JSON 值（project_title、环节标题、duration、questions、notes、probingQuestion 等）必须使用中文书写。\n`;
     })();
 
-    const durPlaceholder = outputLanguage === '英文' ? 'XX min' : outputLanguage === '日文' ? 'XX分' : 'XX分钟';
+    const durPlaceholder = outputLanguageMode === GroqService.OUTPUT_LANGUAGE.EN ? 'XX min' : outputLanguageMode === GroqService.OUTPUT_LANGUAGE.JA ? 'XX分' : 'XX分钟';
     const ex = (() => {
-      if (outputLanguage === '英文') {
+      if (outputLanguageMode === GroqService.OUTPUT_LANGUAGE.EN) {
         return {
           title1: 'Warm-up / Ice-breaker',
           title2: 'Section title (core)',
@@ -548,7 +750,7 @@ class GroqService {
           consensus: 'Please collectively reject the current solution/product/feature and give the most damaging reason.',
         };
       }
-      if (outputLanguage === '日文') {
+      if (outputLanguageMode === GroqService.OUTPUT_LANGUAGE.JA) {
         return {
           title1: 'ウォーミングアップ',
           title2: 'セクションタイトル（コア）',
@@ -564,7 +766,7 @@ class GroqService {
           consensus: '現在の方案/製品/機能を collectively 否定し、最も致命的な理由を述べてください。',
         };
       }
-      if (outputLanguage === '双语对照') {
+      if (outputLanguageMode === GroqService.OUTPUT_LANGUAGE.BILINGUAL) {
         return {
           title1: '暖场/破冰 / Warm-up',
           title2: '环节标题（核心）/ Section title (core)',

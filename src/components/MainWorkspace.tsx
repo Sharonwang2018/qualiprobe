@@ -985,7 +985,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                               ) : (
                                 <span className="mr-2">■</span>
                               )}
-                              {isCore && <span className="mr-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded">核心</span>}
+                              {isCore && <span className="mr-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded">{t('outline.coreSection')}</span>}
                               {t('outline.sectionTitle', { number: section.id || index + 1, title: section.title })}
                             </h5>
                             <span className="text-sm font-semibold text-slate-600 bg-white px-3 py-1 rounded-full shadow-sm">
@@ -1030,7 +1030,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                           <div className="mb-4 border-l-4 border-amber-300 bg-amber-50/50 rounded-r-lg py-3 pl-4 pr-3">
                             <h6 className="font-semibold text-amber-800 mb-2 flex items-center">
                               <span className="mr-2">🗳️</span>
-                              讨论任务
+                              {t('outline.discussionTask')}
                             </h6>
                             <p className="text-slate-700 text-sm leading-relaxed ml-2">
                               {(section as Section).discussionTask}
@@ -1043,7 +1043,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                           <div className="mb-4 border-l-4 border-red-300 bg-red-50/50 rounded-r-lg py-3 pl-4 pr-3">
                             <h6 className="font-semibold text-red-800 mb-2 flex items-center">
                               <span className="mr-2">⚡</span>
-                              共识挑战任务
+                              {t('outline.consensusChallengeTask')}
                             </h6>
                             <p className="text-slate-700 text-sm leading-relaxed ml-2">
                               {(section as Section).consensusChallengeTask}
@@ -1056,7 +1056,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                           <div className="mb-4 border-l-4 border-cyan-400 bg-cyan-50/50 rounded-r-lg py-3 pl-4 pr-3">
                             <h6 className="font-semibold text-cyan-800 mb-2 flex items-center">
                               <span className="mr-2">📷</span>
-                              证物展示 (Show & Tell)
+                              {t('outline.behavioralEvidenceTask')}
                             </h6>
                             <p className="text-slate-700 text-sm leading-relaxed ml-2">
                               {(section as Section).behavioralEvidenceTask}
@@ -1069,7 +1069,7 @@ export default function MainWorkspace({ outlineData: propOutlineData, setOutline
                           <div className="mb-4 border-l-4 border-indigo-300 bg-indigo-50/40 rounded-r-lg py-3 pl-4 pr-3">
                             <h6 className="font-semibold text-indigo-800 mb-2 flex items-center">
                               <span className="mr-2">⚡</span>
-                              深度追问
+                              {t('outline.deepProbing')}
                             </h6>
                             <p className="text-slate-700 text-sm leading-relaxed ml-2 whitespace-pre-line">
                               {(section as Section).probingQuestion}
