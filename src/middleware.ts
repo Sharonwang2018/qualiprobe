@@ -5,8 +5,13 @@ export default auth((req) => {
   if (process.env.SKIP_AUTH === "1") {
     return NextResponse.next();
   }
+  const path = req.nextUrl.pathname;
+  const isPublic = path === "/" || path === "";
+  if (isPublic) {
+    return NextResponse.next();
+  }
   const isLoggedIn = !!req.auth;
-  const isAuthPage = req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/register");
+  const isAuthPage = path.startsWith("/login") || path.startsWith("/register");
 
   if (isAuthPage) {
     if (isLoggedIn) {
@@ -17,7 +22,7 @@ export default auth((req) => {
 
   if (!isLoggedIn) {
     const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("callbackUrl", req.nextUrl.pathname);
+    loginUrl.searchParams.set("callbackUrl", path);
     return Response.redirect(loginUrl);
   }
 
