@@ -302,7 +302,13 @@ ${JSON.stringify(outline)}
       '替代',
       '切换',
       '为什么选',
-      '为什么不选'
+      '为什么不选',
+      '购买考虑',
+      '考虑因素',
+      '决策因素',
+      '市场分析',
+      '市场研究',
+      '市场调研'
     ];
 
     const experienceKeywords = [
@@ -801,6 +807,20 @@ ${JSON.stringify(outline)}
     const routingNote = `\n### 强制性逻辑分支 (Universal Routing) — 拒绝通用模板
 - 系统禁止使用通用模板。必须根据「研究类型：${currentStudyLabel}」与「访谈类型：${interviewType}」动态组装大纲，不得产出与类型无关的泛泛内容。\n`;
 
+    const probePlaceholder = `[根据 researchTopic「${coreTopic}」与本环节主题，按「${currentStudyLabel}」的 Action→Feeling→Motivation 结构动态创作，每个环节追问须不同]`;
+
+    const forbiddenByStudyType: Record<string, string> = {
+      competitive: '严禁使用体验类话术（那10秒钟、手在干什么、被打扰、被忽视、重新定义品牌）；须围绕选择情境、比较过程、拍板/犹豫点、换选择的触发条件',
+      journey: '严禁使用体验类话术（那10秒钟、被打扰、被忽视）；须围绕环节还原、触点卡点、顺/卡感受、避坑/重复逻辑',
+      pricing: '严禁使用体验类话术（那10秒钟、被打扰、被忽视）；须围绕价格/配置选项、肉疼/值了触发点、取舍与过线',
+      brand: '严禁使用体验类话术（那10秒钟、被打扰、被忽视）；须围绕品牌联想、拟人化、传播对味/不对味',
+      persona: '严禁使用体验类话术（那10秒钟、被打扰、被忽视）；须围绕典型情境、风格三词、底线与妥协',
+      concept: '严禁使用体验类话术（那10秒钟、被打扰、被忽视）；须围绕理解复述、有意思/不靠谱点、真用/犹豫条件',
+      ux: '严禁使用体验类话术（被打扰、被忽视、重新定义品牌）；须围绕任务步骤、卡点、心智模型、懵了/懂了',
+      experience: '须使用瞬间还原、被打扰/被忽视等感受、重新定义品牌；可参考 system 中体验诊断专属结构',
+    };
+    const probeRule = forbiddenByStudyType[studyType] || forbiddenByStudyType.experience;
+
     const userPrompt = `
 请生成以下访谈大纲：
 ${routingNote}
@@ -816,7 +836,7 @@ ${fgdBlock}
 
 当前选择的输出语言：${outputLanguage}
 
-请严格按照以下JSON格式返回（示例占位符已按输出语言「${outputLanguage}」展示，你生成的全部内容也必须使用该语言）：
+请严格按照以下JSON格式返回（示例占位符已按输出语言「${outputLanguage}」展示，你生成的全部内容也必须使用该语言）。**probingQuestion 必须输出完整追问话术（多行用 \\n 分隔），禁止输出占位符方括号内的说明文字**：
 
 {
   "project_title": "${coreTopic} - Discussion Guide (${interviewType})",
@@ -827,7 +847,7 @@ ${fgdBlock}
       "duration": "${durPlaceholder}",
       "questions": ["${ex.q1}", "${ex.q2}"],
       "notes": "${ex.notes}",
-      "probingQuestion": "${ex.probe}",
+      "probingQuestion": "${probePlaceholder}",
       "isCore": false
     },
     {
@@ -836,7 +856,7 @@ ${fgdBlock}
       "duration": "${durPlaceholder}",
       "questions": ["${ex.q1}", "${ex.q2}", "${ex.q3}"],
       "notes": "${isFGD ? ex.notesFgd : (ex.notesCore ?? ex.notes)}",
-      "probingQuestion": "${ex.probe2}"${isFGD && fgdInteraction ? `,
+      "probingQuestion": "${probePlaceholder}"${isFGD && fgdInteraction ? `,
       "interactionType": "${fgdInteraction.type}",
       "discussionTask": "${fgdInteraction.task}",
       "consensusChallengeTask": "${ex.consensus}"` : ''},
@@ -846,7 +866,7 @@ ${fgdBlock}
   ]
 }
 
-说明：probingQuestion 须严格按 Action → Feeling → Motivation 递进；须使用「${currentStudyLabel}」专属追问 + ${isFGD ? 'FGD 群体共识追问' : 'IDI 心理防御拆解追问'}（见上述结构说明）；严禁跨类型套用；至少一个核心环节设 behavioralEvidenceTask（IDI 用「请你」，FGD 用「请大家」）；isCore 环节 probingQuestion 不少于 3 组且含互动任务。${isFGD ? ' FGD 必须自动生成 consensusChallengeTask（⚡ 冲突点挑战）；环节 2 须设 interactionType、discussionTask、consensusChallengeTask。' : ''}${studyType === 'experience' ? ' Experience 类型必须自动生成 behavioralEvidenceTask（📷 证物展示）模块。' : ''}`;
+说明：probingQuestion 须严格按 Action → Feeling → Motivation 递进；**每个环节必须根据 researchTopic、本环节主题动态创作专属追问，严禁照抄占位符或输出雷同内容**；${probeRule}；须叠加 ${isFGD ? 'FGD 群体共识追问' : 'IDI 心理防御拆解追问'}（见 system 说明）；至少一个核心环节设 behavioralEvidenceTask（IDI 用「请你」，FGD 用「请大家」）；isCore 环节 probingQuestion 不少于 3 组且含互动任务。${isFGD ? ' FGD 必须自动生成 consensusChallengeTask（⚡ 冲突点挑战）；环节 2 须设 interactionType、discussionTask、consensusChallengeTask。' : ''}${studyType === 'experience' ? ' Experience 类型必须自动生成 behavioralEvidenceTask（📷 证物展示）模块。' : ''}`;
 
     return `${systemPrompt}${languageDirective}\n\n${userPrompt}`;
   }
