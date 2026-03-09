@@ -116,16 +116,41 @@ function QualiProbe() {
     setActiveProjectId(projectId);
   };
 
-  const handleApplySuggestion = (section: { title: string; duration: string; questions: string[]; notes: string }) => {
+  const handleApplySuggestion = (section: {
+    title: string;
+    duration: string;
+    questions: string[];
+    notes: string;
+    targetSectionIndex?: number | null;
+  }) => {
     if (!outlineData?.sections || !activeProjectId) return;
-    const newSection = {
-      ...section,
-      id: outlineData.sections.length + 1,
-    };
-    const newOutline = {
-      ...outlineData,
-      sections: [...outlineData.sections, newSection],
-    };
+
+    const idx = section.targetSectionIndex;
+    const isValidIdx = typeof idx === 'number' && idx >= 0 && idx < outlineData.sections.length;
+
+    let newOutline: OutlineData;
+
+    if (isValidIdx) {
+      const existing = outlineData.sections[idx];
+      const mergedSection = {
+        ...existing,
+        questions: [...(existing.questions || []), ...(section.questions || [])],
+        notes: [existing.notes, section.notes].filter(Boolean).join('\n\n'),
+      };
+      const newSections = [...outlineData.sections];
+      newSections[idx] = mergedSection;
+      newOutline = { ...outlineData, sections: newSections };
+    } else {
+      const newSection = {
+        ...section,
+        id: outlineData.sections.length + 1,
+      };
+      newOutline = {
+        ...outlineData,
+        sections: [...outlineData.sections, newSection],
+      };
+    }
+
     setOutlineData(newOutline);
     setProjects((prev) =>
       prev.map((p) => (p.id === activeProjectId ? { ...p, data: newOutline } : p))

@@ -124,7 +124,10 @@ export default function AgentChat({
       const res = await fetch('/api/extract-section', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ suggestion: message.content }),
+        body: JSON.stringify({
+          suggestion: message.content,
+          sectionCount: outlineData.sections?.length ?? 0,
+        }),
       });
       if (!res.ok) throw new Error('Extract failed');
       const section = await res.json();
